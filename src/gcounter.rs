@@ -73,7 +73,7 @@ impl<A: Ord + Clone + Serialize + DeserializeOwned> GCounter<A> {
     /// a.merge(b);
     /// assert_eq!(a, c);
     pub fn merge(&mut self, other: GCounter<A>) {
-        self.inner.merge(other.inner);
+        self.inner.merge(&other.inner);
     }
 }
 

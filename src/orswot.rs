@@ -4,9 +4,14 @@
 //! # Examples
 //!
 
-use super::*;
-
 use std::collections::{BTreeMap, BTreeSet};
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+use error::Result;
+use traits::ComposableCrdt;
+use vclock::VClock;
 
 /// `Orswot` is an add-biased or-set without tombstones ported from
 /// the riak_dt CRDT library.
@@ -19,6 +24,94 @@ pub struct Orswot<
     clock: VClock<Actor>,
     entries: BTreeMap<Member, VClock<Actor>>,
     deferred: BTreeMap<VClock<Actor>, BTreeSet<Member>>,
+}
+
+impl<Member, Actor> Default for Orswot<Member, Actor> where
+    Member: Ord + Clone + Serialize + DeserializeOwned,
+    Actor: Ord + Clone + Serialize + DeserializeOwned
+{
+    fn default() -> Self {
+        Orswot::new()
+    }
+}
+
+
+impl<Member, Actor> ComposableCrdt<Actor> for Orswot<Member, Actor> where
+    Member: Ord + Clone + Serialize + DeserializeOwned,
+    Actor: Ord + Clone + Serialize + DeserializeOwned
+{
+    fn default_with_clock(clock: VClock<Actor>) -> Self{
+        let mut default = Orswot::default();
+        default.clock = clock;
+        default
+    }
+
+    /// Merge combines another `Orswot` with this one.
+    fn merge(&mut self, other: &Self) -> Result<()> {
+        let mut other_remaining = other.entries.clone();
+        let mut keep = BTreeMap::new();
+        for (entry, clock) in self.entries.clone().into_iter() {
+            match other.entries.get(&entry) {
+                None => {
+                    // other doesn't contain this entry because it:
+                    //  1. has witnessed it and dropped it
+                    //  2. hasn't witnessed it
+                    if clock.dominating_vclock(&other.clock).is_empty() {
+                        // the other orswot has witnessed the entry's clock, and dropped this entry
+                    } else {
+                        // the other orswot has not witnessed this add, so add it
+                        keep.insert(entry, clock);
+                    }
+                }
+                Some(other_entry_clock) => {
+                    // SUBTLE: this entry is present in both orswots, BUT that doesn't mean we
+                    // shouldn't drop it!
+                    let common = clock.intersection(&other_entry_clock);
+                    let luniq = clock.dominating_vclock(&common);
+                    let runiq = other_entry_clock.dominating_vclock(&common);
+                    let lkeep = luniq.dominating_vclock(&other.clock);
+                    let rkeep = runiq.dominating_vclock(&self.clock);
+                    // Perfectly possible that an item in both sets should be dropped
+                    let mut common = common;
+                    common.merge(&lkeep);
+                    common.merge(&rkeep);
+                    if common.is_empty() {
+                        // we should not drop, as there are common clocks
+                    } else {
+                        keep.insert(entry.clone(), common);
+                    }
+                    // don't want to consider this again below
+                    other_remaining.remove(&entry).unwrap();
+                }
+            }
+        }
+
+        for (entry, clock) in other_remaining.into_iter() {
+            let dom_clock = clock.dominating_vclock(&self.clock);
+            if !dom_clock.is_empty() {
+                // other has witnessed a novel addition, so add it
+                keep.insert(entry, dom_clock);
+            }
+        }
+
+        // merge deferred removals
+        for (clock, deferred) in other.deferred.iter() {
+            let mut our_deferred =
+                self.deferred.remove(&clock).unwrap_or(BTreeSet::new());
+            for e in deferred.iter() {
+                our_deferred.insert(e.clone());
+            }
+            self.deferred.insert(clock.clone(), our_deferred);
+        }
+
+        self.entries = keep;
+
+        // merge vclocks
+        self.clock.merge(&other.clock);
+
+        self.apply_deferred();
+        Ok(())
+    }
 }
 
 impl<
@@ -42,10 +135,12 @@ impl<
     ///
     /// ```
     /// use crdts::Orswot;
+    /// use crdts::traits::ComposableCrdt;
+    ///
     /// let (mut a, mut b) = (Orswot::new(), Orswot::new());
     /// a.add(1, 1);
     /// b.add(2, 1);
-    /// a.merge(b);
+    /// a.merge(&b);
     /// assert!(a.value().is_empty());
     /// ```
     pub fn add(&mut self, member: Member, actor: Actor) {
@@ -80,7 +175,7 @@ impl<
     ) {
         if !context.dominating_vclock(&self.clock).is_empty() {
             let mut deferred_drops =
-                self.deferred.remove(context).unwrap_or(BTreeSet::new());
+                self.deferred.remove(context).unwrap_or_else(|| BTreeSet::new());
             deferred_drops.insert(member.clone());
             self.deferred.insert(context.clone(), deferred_drops);
         }
@@ -118,73 +213,6 @@ impl<
     /// Retrieve the current members.
     pub fn value(&self) -> Vec<Member> {
         self.entries.keys().cloned().collect()
-    }
-
-    /// Merge combines another `Orswot` with this one.
-    ///
-    pub fn merge(&mut self, other: Orswot<Member, Actor>) {
-        let mut other_remaining = other.entries.clone();
-        let mut keep = BTreeMap::new();
-        for (entry, clock) in self.entries.clone().into_iter() {
-            match other.entries.get(&entry) {
-                None => {
-                    // other doesn't contain this entry because it:
-                    //  1. has witnessed it and dropped it
-                    //  2. hasn't witnessed it
-                    if clock.dominating_vclock(&other.clock).is_empty() {
-                        // the other orswot has witnessed the entry's clock, and dropped this entry
-                    } else {
-                        // the other orswot has not witnessed this add, so add it
-                        keep.insert(entry, clock);
-                    }
-                }
-                Some(other_entry_clock) => {
-                    // SUBTLE: this entry is present in both orswots, BUT that doesn't mean we
-                    // shouldn't drop it!
-                    let common = clock.intersection(&other_entry_clock);
-                    let luniq = clock.dominating_vclock(&common);
-                    let runiq = other_entry_clock.dominating_vclock(&common);
-                    let lkeep = luniq.dominating_vclock(&other.clock);
-                    let rkeep = runiq.dominating_vclock(&self.clock);
-                    // Perfectly possible that an item in both sets should be dropped
-                    let mut common = common;
-                    common.merge(lkeep);
-                    common.merge(rkeep);
-                    if common.is_empty() {
-                        // we should not drop, as there are common clocks
-                    } else {
-                        keep.insert(entry.clone(), common);
-                    }
-                    // don't want to consider this again below
-                    other_remaining.remove(&entry).unwrap();
-                }
-            }
-        }
-
-        for (entry, clock) in other_remaining.into_iter() {
-            let dom_clock = clock.dominating_vclock(&self.clock);
-            if !dom_clock.is_empty() {
-                // other has witnessed a novel addition, so add it
-                keep.insert(entry, dom_clock);
-            }
-        }
-
-        // merge deferred removals
-        for (clock, deferred) in other.deferred.iter() {
-            let mut our_deferred =
-                self.deferred.remove(&clock).unwrap_or(BTreeSet::new());
-            for e in deferred.iter() {
-                our_deferred.insert(e.clone());
-            }
-            self.deferred.insert(clock.clone(), our_deferred);
-        }
-
-        self.entries = keep;
-
-        // merge vclocks
-        self.clock.merge(other.clone().clock);
-
-        self.apply_deferred();
     }
 
     fn apply_deferred(&mut self) {
@@ -347,14 +375,14 @@ mod tests {
             }
             let mut merged = Orswot::new();
             for witness in witnesses.iter() {
-                merged.merge(witness.clone());
+                assert!(merged.merge(&witness).is_ok());
             }
 
             // defer_plunger is used to merge deferred elements from the above.
             // to illustrate why this is needed, check out `weird_highlight_3`
             // below.
             let defer_plunger = Orswot::new();
-            merged.merge(defer_plunger);
+            assert!(merged.merge(&defer_plunger).is_ok());
 
             results.insert(merged.value());
             if results.len() > 1 {
@@ -386,7 +414,7 @@ mod tests {
         let (mut a, mut b) = (Orswot::new(), Orswot::new());
         a.add(1, 1);
         b.add(2, 1);
-        a.merge(b);
+        assert!(a.merge(&b).is_ok());
         assert!(a.value().is_empty());
     }
 
@@ -403,7 +431,7 @@ mod tests {
         unsafe {
             b.remove(1);
         }
-        a.merge(b);
+        assert!(a.merge(&b).is_ok());
         assert_eq!(a.value(), vec![1]);
     }
 
@@ -418,7 +446,7 @@ mod tests {
         a.remove_with_context("element".to_string(), &ctx);
         a.add("element".to_string(), "actor".to_string());
         assert_eq!(a.value(), vec!["element".to_string()]);
-        a.merge(b);
+        assert!(a.merge(&b).is_ok());
         assert!(a.value().is_empty());
     }
 
@@ -434,7 +462,7 @@ mod tests {
         a.add("element".to_string(), "actor 7".to_string());
         b.remove_with_context("element".to_string(), &ctx);
         a.add("element".to_string(), "actor 1".to_string());
-        a.merge(b);
+        assert!(a.merge(&b).is_ok());
         assert!(a.value().is_empty());
     }
 
@@ -455,9 +483,9 @@ mod tests {
         b.remove_with_context("element 9".to_string(), &ctx2);
 
         let mut merged = Orswot::new();
-        merged.merge(a);
-        merged.merge(b);
-        merged.merge(Orswot::new());
+        assert!(merged.merge(&a).is_ok());
+        assert!(merged.merge(&b).is_ok());
+        assert!(merged.merge(&Orswot::new()).is_ok());
         assert_eq!(merged.deferred.len(), 2);
     }
 
@@ -480,13 +508,13 @@ mod tests {
         assert_eq!(b.deferred.len(), 1);
 
         // ensure that the deferred elements survive across a merge
-        c.merge(b);
+        assert!(c.merge(&b).is_ok());
         assert_eq!(c.deferred.len(), 1);
 
         // after merging the set with deferred elements with the set that contains
         // an inferior member, ensure that the member is no longer visible and
         // the deferred set still contains this info
-        a.merge(c);
+        assert!(a.merge(&c).is_ok());
         assert!(a.value().is_empty());
     }
 
@@ -499,7 +527,7 @@ mod tests {
         // add element 1 with witnesses 3 and 7
         a.add(1, 3);
         b.add(1, 7);
-        a.merge(b);
+        assert!(a.merge(&b).is_ok());
         assert_eq!(a.value(), vec![1]);
         let mut expected_clock = VClock::new();
         expected_clock.increment(3);
@@ -517,13 +545,13 @@ mod tests {
         assert_eq!(b.value(), vec!["baz".to_string()]);
         let mut c = a.clone();
         assert_eq!(c.value(), vec!["bar".to_string()]);
-        c.merge(b);
+        assert!(c.merge(&b).is_ok());
         assert_eq!(c.value(), vec!["bar".to_string(), "baz".to_string()]);
         unsafe {
             a.remove("bar".to_string());
         }
         let mut d = a.clone();
-        d.merge(c);
+        assert!(d.merge(&c).is_ok());
         assert_eq!(d.value(), vec!["baz".to_string()]);
     }
 
@@ -542,15 +570,15 @@ mod tests {
         b.add("Z".to_string(), "B".to_string());
         // Replicate B to A, so now A has a Z, the one with a Dot of
         // {b,1} and clock of [{a, 1}, {b, 1}]
-        a.merge(b.clone());
+        assert!(a.merge(&b).is_ok());
         unsafe {
             b.remove("Z".to_string());
         }
         // Both C and A have a 'Z', but when they merge, there should be
         // no 'Z' as C's has been removed by A and A's has been removed by
         // C.
-        a.merge(b);
-        a.merge(c);
+        assert!(a.merge(&b).is_ok());
+        assert!(a.merge(&c).is_ok());
         assert!(a.value().is_empty());
     }
 
@@ -568,7 +596,7 @@ mod tests {
         }
 
         // replicate B to A, now A has B's 'Z'
-        a.merge(b.clone());
+        assert!(a.merge(&b).is_ok());
         assert_eq!(a.value(), vec!["Z".to_string()]);
 
         let mut expected_clock = VClock::new();
@@ -582,13 +610,13 @@ mod tests {
         assert!(b.value().is_empty());
 
         // Replicate C to B, now B has A's old 'Z'
-        b.merge(c.clone());
+        assert!(b.merge(&c).is_ok());
         assert_eq!(b.value(), vec!["Z".to_string()]);
 
         // Merge everything, without the fix You end up with 'Z' present,
         // with no dots
-        b.merge(a);
-        b.merge(c);
+        assert!(b.merge(&a).is_ok());
+        assert!(b.merge(&c).is_ok());
 
         assert!(b.value().is_empty());
     }

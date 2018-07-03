@@ -64,6 +64,39 @@ impl<A: Ord + Clone + Serialize + DeserializeOwned> VClock<A> {
         VClock { dots: BTreeMap::new() }
     }
 
+    /// Returns the greatest lower bound of given clocks
+    ///
+    /// # Examples
+    ///
+    /// ``` rust
+    /// use crdts::VClock;
+    /// let (mut a, mut b) = (VClock::new(), VClock::new());
+    /// a.witness("A".to_string(), 3);
+    /// a.witness("B".to_string(), 6);
+    /// b.witness("A".to_string(), 2);
+    ///
+    /// let glb = VClock::glb(&a, &b);
+    ///
+    /// assert_eq!(glb.get(&"A".to_string()), Some(2));
+    /// assert_eq!(glb.get(&"B".to_string()), None);
+    /// assert!(a >= glb);
+    /// assert!(b >= glb);
+    /// ```
+    pub fn glb(a: &VClock<A>, b: &VClock<A>) -> VClock<A> {
+        let mut glb_vclock = VClock::new();
+        for (actor, a_cntr) in a.dots.iter() {
+            if let Some(b_cntr) = b.get(actor){
+                let min_cntr = if *a_cntr < b_cntr {
+                    *a_cntr
+                } else {
+                    b_cntr
+                };
+                glb_vclock.dots.insert(actor.clone(), min_cntr);
+            }
+        }
+        glb_vclock
+    }
+
     /// For a particular actor, possibly store a new counter
     /// if it dominates.
     ///
@@ -119,14 +152,14 @@ impl<A: Ord + Clone + Serialize + DeserializeOwned> VClock<A> {
     /// b.increment("B".to_string());
     /// c.increment("A".to_string());
     /// c.increment("B".to_string());
-    /// a.merge(b);
+    /// a.merge(&b);
     /// assert_eq!(a, c);
     /// ```
     ///
     #[allow(unused_must_use)]
-    pub fn merge(&mut self, other: VClock<A>) {
-        for (actor, counter) in other.dots.into_iter() {
-            self.witness(actor, counter);
+    pub fn merge(&mut self, other: &VClock<A>) {
+        for (actor, counter) in other.dots.iter() {
+            self.witness(actor.clone(), *counter);
         }
     }
 
@@ -267,7 +300,7 @@ mod tests {
         b.witness(3, 3).unwrap();
         b.witness(4, 3).unwrap();
 
-        a.merge(b);
+        a.merge(&b);
         assert_eq!(a.get(&1), Some(1));
         assert_eq!(a.get(&2), Some(2));
         assert_eq!(a.get(&3), Some(3));
@@ -282,7 +315,7 @@ mod tests {
         b.witness(6, 6).unwrap();
         b.witness(7, 7).unwrap();
 
-        a.merge(b);
+        a.merge(&b);
         assert_eq!(a.get(&5), Some(5));
         assert_eq!(a.get(&6), Some(6));
         assert_eq!(a.get(&7), Some(7));
@@ -296,7 +329,7 @@ mod tests {
 
         b.witness(5, 5).unwrap();
 
-        a.merge(b);
+        a.merge(&b);
         assert_eq!(a.get(&5), Some(5));
         assert_eq!(a.get(&6), Some(6));
         assert_eq!(a.get(&7), Some(7));
@@ -311,7 +344,7 @@ mod tests {
         b.witness(1, 1).unwrap();
         b.witness(3, 1).unwrap();
 
-        a.merge(b);
+        a.merge(&b);
         assert_eq!(a.get(&1), Some(1));
         assert_eq!(a.get(&2), Some(1));
         assert_eq!(a.get(&3), Some(1));
