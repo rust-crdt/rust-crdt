@@ -1,16 +1,15 @@
 /// Observed-Remove Set With Out Tombstones (ORSWOT), ported directly from `riak_dt`.
-
 use hashbrown::{HashMap, HashSet};
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::cmp::Ordering;
 use std::mem;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::traits::{CvRDT, CmRDT, Causal};
-use crate::vclock::{VClock, Dot, Actor};
-use crate::ctx::{ReadCtx, AddCtx, RmCtx};
+use crate::ctx::{AddCtx, ReadCtx, RmCtx};
+use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::vclock::{Actor, Dot, VClock};
 
 /// Trait bound alias for members in a set
 pub trait Member: Debug + Clone + Hash + Eq {}
@@ -36,15 +35,15 @@ pub enum Op<M: Member, A: Actor> {
         /// witnessing dot
         dot: Dot<A>,
         /// Member to add
-        member: M
+        member: M,
     },
     /// Remove a member from the set
     Rm {
         /// witnessing clock
         clock: VClock<A>,
         /// Member to remove
-        members: HashSet<M>
-    }
+        members: HashSet<M>,
+    },
 }
 
 impl<M: Member, A: Actor> Default for Orswot<M, A> {
@@ -64,13 +63,12 @@ impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
                     return;
                 }
 
-                let member_vclock = self.entries.entry(member)
-                    .or_default();
+                let member_vclock = self.entries.entry(member).or_default();
                 member_vclock.apply(dot.clone());
 
                 self.clock.apply(dot);
                 self.apply_deferred();
-            },
+            }
             Op::Rm { clock, members } => {
                 self.apply_rm(members, clock);
             }
@@ -104,7 +102,7 @@ impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
                 }
             })
             .collect();
-        
+
         for (entry, mut clock) in other.entries {
             if let Some(our_clock) = self.entries.get_mut(&entry) {
                 // SUBTLE: this entry is present in both orswots, BUT that doesn't mean we
@@ -157,7 +155,8 @@ impl<M: Member, A: Actor> Causal<A> for Orswot<M, A> {
     fn forget(&mut self, clock: &VClock<A>) {
         self.clock.forget(&clock);
 
-        self.entries = self.entries
+        self.entries = self
+            .entries
             .clone()
             .into_iter()
             .filter_map(|(val, mut val_clock)| {
@@ -167,9 +166,11 @@ impl<M: Member, A: Actor> Causal<A> for Orswot<M, A> {
                 } else {
                     Some((val, val_clock))
                 }
-            }).collect();
+            })
+            .collect();
 
-        self.deferred = self.deferred
+        self.deferred = self
+            .deferred
             .clone()
             .into_iter()
             .filter_map(|(mut vclock, deferred)| {
@@ -179,7 +180,8 @@ impl<M: Member, A: Actor> Causal<A> for Orswot<M, A> {
                 } else {
                     Some((vclock, deferred))
                 }
-            }).collect();
+            })
+            .collect();
     }
 }
 
@@ -195,14 +197,20 @@ impl<M: Member, A: Actor> Orswot<M, A> {
 
     /// Add a single element.
     pub fn add(&self, member: M, ctx: AddCtx<A>) -> Op<M, A> {
-        Op::Add { dot: ctx.dot, member }
+        Op::Add {
+            dot: ctx.dot,
+            member,
+        }
     }
 
     /// Remove a member with a witnessing ctx.
     pub fn rm(&self, member: M, ctx: RmCtx<A>) -> Op<M, A> {
         let mut members = HashSet::new();
         members.insert(member);
-        Op::Rm { clock: ctx.clock, members }
+        Op::Rm {
+            clock: ctx.clock,
+            members,
+        }
     }
 
     /// Remove a member using a witnessing clock.
@@ -224,7 +232,7 @@ impl<M: Member, A: Actor> Orswot<M, A> {
                     self.deferred.insert(clock, members);
                 }
             }
-            _ => {/* we've already seen this remove */}
+            _ => { /* we've already seen this remove */ }
         }
     }
 
@@ -234,10 +242,8 @@ impl<M: Member, A: Actor> Orswot<M, A> {
         let exists = member_clock_opt.is_some();
         ReadCtx {
             add_clock: self.clock.clone(),
-            rm_clock: member_clock_opt
-                .cloned()
-                .unwrap_or_default(),
-            val: exists
+            rm_clock: member_clock_opt.cloned().unwrap_or_default(),
+            val: exists,
         }
     }
 
@@ -246,7 +252,7 @@ impl<M: Member, A: Actor> Orswot<M, A> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
-            val: self.entries.keys().cloned().collect()
+            val: self.entries.keys().cloned().collect(),
         }
     }
 
@@ -277,12 +283,22 @@ mod tests {
         b.apply(b.add("element 1", b.read().derive_add_ctx("A")));
 
         // remove with a future context
-        b.apply(b.rm("element 1", RmCtx { clock: Dot::new("A", 4).into() }));
+        b.apply(b.rm(
+            "element 1",
+            RmCtx {
+                clock: Dot::new("A", 4).into(),
+            },
+        ));
 
         a.apply(a.add("element 4", a.read().derive_add_ctx("B")));
-        
+
         // remove with a future context
-        b.apply(b.rm("element 9", RmCtx { clock: Dot::new("C", 4).into() }));
+        b.apply(b.rm(
+            "element 9",
+            RmCtx {
+                clock: Dot::new("C", 4).into(),
+            },
+        ));
 
         let mut merged = Orswot::new();
         merged.merge(a);

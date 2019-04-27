@@ -1,9 +1,9 @@
 use num_bigint::BigInt;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::vclock::{VClock, Actor, Dot};
 use crate::gcounter::GCounter;
-use crate::traits::{CvRDT, CmRDT, Causal};
+use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::vclock::{Actor, Dot, VClock};
 
 /// `PNCounter` allows the counter to be both incremented and decremented
 /// by representing the increments (P) and the decrements (N) in separate
@@ -37,7 +37,7 @@ pub enum Dir {
     /// signals that the op increments the counter
     Pos,
     /// signals that the op decrements the counter
-    Neg
+    Neg,
 }
 
 /// An Op which is produced through from mutating the counter
@@ -47,7 +47,7 @@ pub struct Op<A: Actor> {
     /// The witnessing dot for this op
     pub dot: Dot<A>,
     /// the direction to move the counter
-    pub dir: Dir
+    pub dir: Dir,
 }
 
 impl<A: Actor> Default for PNCounter<A> {
@@ -62,7 +62,7 @@ impl<A: Actor> CmRDT for PNCounter<A> {
     fn apply(&mut self, op: Self::Op) {
         match op {
             Op { dot, dir: Dir::Pos } => self.p.apply(dot),
-            Op { dot, dir: Dir::Neg } => self.n.apply(dot)
+            Op { dot, dir: Dir::Neg } => self.n.apply(dot),
         }
     }
 }
@@ -92,19 +92,25 @@ impl<A: Actor> PNCounter<A> {
 
     /// Generate an Op to increment the counter.
     pub fn inc(&self, actor: A) -> Op<A> {
-        Op { dot: self.p.inc(actor), dir: Dir::Pos }
+        Op {
+            dot: self.p.inc(actor),
+            dir: Dir::Pos,
+        }
     }
 
     /// Generate an Op to increment the counter.
     pub fn dec(&self, actor: A) -> Op<A> {
-        Op { dot: self.n.inc(actor), dir: Dir::Neg }
+        Op {
+            dot: self.n.inc(actor),
+            dir: Dir::Neg,
+        }
     }
 
     /// Return the current value of this counter (P-N).
     pub fn read(&self) -> BigInt {
-        let p : BigInt = self.p.read().into();
-        let n : BigInt = self.n.read().into();
-        p-n
+        let p: BigInt = self.p.read().into();
+        let n: BigInt = self.n.read().into();
+        p - n
     }
 }
 
@@ -122,11 +128,7 @@ mod test {
         let (actor, counter, dir_choice) = prims;
         Op {
             dot: Dot { actor, counter },
-            dir: if dir_choice {
-                Dir::Pos
-            } else {
-                Dir::Neg
-            }
+            dir: if dir_choice { Dir::Pos } else { Dir::Neg },
         }
     }
 

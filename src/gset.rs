@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::traits::{CvRDT, CmRDT};
+use crate::traits::{CmRDT, CvRDT};
 
 /// A `GSet` is a grow-only set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -32,8 +32,7 @@ impl<T: Ord + Clone> CvRDT for GSet<T> {
     /// assert!(a.contains(&2));
     /// ```
     fn merge(&mut self, other: Self) {
-        other.value.into_iter()
-            .for_each(|e| self.insert(e))
+        other.value.into_iter().for_each(|e| self.insert(e))
     }
 }
 
@@ -48,7 +47,9 @@ impl<T: Ord + Debug> CmRDT for GSet<T> {
 impl<T: Ord> GSet<T> {
     /// Instantiates an empty `GSet`.
     pub fn new() -> Self {
-        GSet { value: BTreeSet::new() }
+        GSet {
+            value: BTreeSet::new(),
+        }
     }
 
     /// Inserts an element into this `GSet`.

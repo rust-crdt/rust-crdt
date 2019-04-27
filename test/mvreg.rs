@@ -1,18 +1,21 @@
-use crdts::{*, mvreg::Op};
+use crdts::{mvreg::Op, *};
 
 use quickcheck::TestResult;
 
 #[derive(Debug, Clone)]
 struct TestReg {
     reg: MVReg<u8, u8>,
-    ops: Vec<Op<u8, u8>>
+    ops: Vec<Op<u8, u8>>,
 }
 
 #[test]
 fn test_apply() {
     let mut reg = MVReg::new();
     let clock = VClock::from(Dot::new(2, 1));
-    reg.apply(Op::Put { clock: clock.clone(), val: 71 });
+    reg.apply(Op::Put {
+        clock: clock.clone(),
+        val: 71,
+    });
     assert_eq!(reg.read().add_clock, clock);
     assert_eq!(reg.read().val, vec![71]);
 }
@@ -23,7 +26,7 @@ fn test_write_should_not_mutate_reg() {
     let ctx = reg.read().derive_add_ctx("A");
     let op = reg.write(32, ctx);
     assert_eq!(reg, MVReg::new());
-    
+
     let mut reg = reg;
     reg.apply(op);
     assert_eq!(reg.read().val, vec![32]);
@@ -43,7 +46,9 @@ fn test_concurrent_update_with_same_value_dont_collapse_on_merge() {
     assert_eq!(r1.read().val, vec![23, 23]);
     assert_eq!(
         r1.read().add_clock,
-        vec![Dot::new("A", 1), Dot::new("B", 1)].into_iter().collect()
+        vec![Dot::new("A", 1), Dot::new("B", 1)]
+            .into_iter()
+            .collect()
     );
 }
 
@@ -59,7 +64,9 @@ fn test_concurrent_update_with_same_value_dont_collapse_on_apply() {
     assert_eq!(r1.read().val, vec![23, 23]);
     assert_eq!(
         r1.read().add_clock,
-        vec![Dot::new("A", 1), Dot::new("B", 1)].into_iter().collect()
+        vec![Dot::new("A", 1), Dot::new("B", 1)]
+            .into_iter()
+            .collect()
     );
 }
 
@@ -72,9 +79,7 @@ fn test_multi_val() {
     r2.apply(r2.write(82, r2.read().derive_add_ctx("B")));
 
     r1.merge(r2);
-    assert!(
-        r1.read().val == vec![32, 82] || r1.read().val == vec![82, 32]
-    );
+    assert!(r1.read().val == vec![32, 82] || r1.read().val == vec![82, 32]);
 }
 
 #[test]
@@ -82,8 +87,14 @@ fn test_op_commute_quickcheck1() {
     let mut reg1 = MVReg::new();
     let mut reg2 = MVReg::new();
 
-    let op1 = Op::Put { clock: Dot::new("A", 1).into(), val: 1 };
-    let op2 = Op::Put { clock: Dot::new("B", 1).into(), val: 2 };
+    let op1 = Op::Put {
+        clock: Dot::new("A", 1).into(),
+        val: 1,
+    };
+    let op2 = Op::Put {
+        clock: Dot::new("B", 1).into(),
+        val: 2,
+    };
 
     reg2.apply(op2.clone());
     reg2.apply(op1.clone());
@@ -137,7 +148,7 @@ quickcheck! {
         let next_read_ctx = reg.read();
         next_read_ctx.val == vec![23]
     }
-    
+
     fn prop_merge_idempotent(r_ops: Vec<(u8, u8)>) -> bool {
         let mut r = build_test_reg(r_ops).reg;
         let r_snapshot = r.clone();
@@ -180,7 +191,7 @@ quickcheck! {
         let mut r2 = build_test_reg(r2_ops).reg;
         let r3 = build_test_reg(r3_ops).reg;
         let r1_snapshot = r1.clone();
-        
+
         // r1 ^ r2
         r1.merge(r2.clone());
 
@@ -242,7 +253,7 @@ quickcheck! {
         for op in o2.ops.into_iter() {
             r1.apply(op);
         }
-        
+
         for op in o1.ops.into_iter() {
             r2.apply(op);
         }

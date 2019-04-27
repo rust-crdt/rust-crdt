@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::vclock::{VClock, Actor};
+use crate::vclock::{Actor, VClock};
 
 /// State based CRDT's replicate by transmitting the entire CRDT state.
 pub trait CvRDT {
@@ -55,7 +55,6 @@ pub trait FunkyCvRDT {
     /// Merge the given CRDT into the current CRDT.
     fn merge(&mut self, other: Self) -> Result<(), Self::Error>;
 }
-
 
 /// Funky variant of the `CmRDT` trait.
 ///

@@ -1,8 +1,8 @@
 use num_bigint::BigUint;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::traits::{CvRDT, CmRDT, Causal};
-use crate::vclock::{VClock, Actor, Dot};
+use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::vclock::{Actor, Dot, VClock};
 
 /// `GCounter` is a grow-only witnessed counter.
 ///
@@ -68,9 +68,7 @@ impl<A: Actor> GCounter<A> {
 
     /// Return the current sum of this counter.
     pub fn read(&self) -> BigUint {
-        self.inner.iter()
-            .map(|dot| dot.counter)
-            .sum()
+        self.inner.iter().map(|dot| dot.counter).sum()
     }
 }
 

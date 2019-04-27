@@ -2,11 +2,11 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Display};
 use std::mem;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::vclock::{VClock, Actor};
-use crate::ctx::{ReadCtx, AddCtx};
+use crate::ctx::{AddCtx, ReadCtx};
 use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::vclock::{Actor, VClock};
 
 /// A Trait alias for the possible values MVReg's may hold
 pub trait Val: Debug + Clone {}
@@ -35,7 +35,7 @@ impl<T: Debug + Clone> Val for T {}
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MVReg<V: Val, A: Actor> {
-    vals: Vec<(VClock<A>, V)>
+    vals: Vec<(VClock<A>, V)>,
 }
 
 /// Defines the set of operations over the MVReg
@@ -46,8 +46,8 @@ pub enum Op<V: Val, A: Actor> {
         /// context of the operation
         clock: VClock<A>,
         /// the value to put
-        val: V
-    }
+        val: V,
+    },
 }
 
 impl<V: Val + Display, A: Actor + Display> Display for MVReg<V, A> {
@@ -69,7 +69,7 @@ impl<V: Val + PartialEq, A: Actor> PartialEq for MVReg<V, A> {
             let num_found = other.vals.iter().filter(|d| d == &dot).count();
 
             if num_found == 0 {
-                return false
+                return false;
             }
             // sanity check
             assert_eq!(num_found, 1);
@@ -78,7 +78,7 @@ impl<V: Val + PartialEq, A: Actor> PartialEq for MVReg<V, A> {
             let num_found = self.vals.iter().filter(|d| d == &dot).count();
 
             if num_found == 0 {
-                return false
+                return false;
             }
             // sanity check
             assert_eq!(num_found, 1);
@@ -91,7 +91,10 @@ impl<V: Val + Eq, A: Actor> Eq for MVReg<V, A> {}
 
 impl<V: Val, A: Actor> Causal<A> for MVReg<V, A> {
     fn forget(&mut self, clock: &VClock<A>) {
-        self.vals = self.vals.clone().into_iter()
+        self.vals = self
+            .vals
+            .clone()
+            .into_iter()
             .filter_map(|(mut val_clock, val)| {
                 val_clock.forget(&clock);
                 if val_clock.is_empty() {
@@ -118,10 +121,12 @@ impl<V: Val, A: Actor> CvRDT for MVReg<V, A> {
             .collect();
 
         self.vals.extend(
-            other.vals.into_iter()
+            other
+                .vals
+                .into_iter()
                 .filter(|(clock, _)| self.vals.iter().filter(|(c, _)| clock < c).count() == 0)
                 .filter(|(clock, _)| self.vals.iter().all(|(c, _)| clock != c))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         );
     }
 }
@@ -136,16 +141,17 @@ impl<V: Val, A: Actor> CmRDT for MVReg<V, A> {
                     return;
                 }
                 // first filter out all values that are dominated by the Op clock
-                self.vals.retain(|(val_clock, _)| match val_clock.partial_cmp(&clock) {
-                    None | Some(Ordering::Greater) => true,
-                    _ => false
-                });
+                self.vals
+                    .retain(|(val_clock, _)| match val_clock.partial_cmp(&clock) {
+                        None | Some(Ordering::Greater) => true,
+                        _ => false,
+                    });
 
                 // TAI: in the case were the Op has a context that already was present,
                 //      the above line would remove that value, the next lines would
                 //      keep the val from the Op, so.. a malformed Op could break
                 //      comutativity.
-                
+
                 // now check if we've already seen this op
                 let mut should_add = true;
                 for (existing_clock, _) in self.vals.iter() {
@@ -171,26 +177,28 @@ impl<V: Val, A: Actor> MVReg<V, A> {
 
     /// Set the value of the register
     pub fn write(&self, val: V, ctx: AddCtx<A>) -> Op<V, A> {
-        Op::Put { clock: ctx.clock, val }
+        Op::Put {
+            clock: ctx.clock,
+            val,
+        }
     }
 
     /// Consumes the register and returns the values
     pub fn read(&self) -> ReadCtx<Vec<V>, A> {
         let clock = self.clock().clone();
-        let concurrent_vals = self.vals.iter().cloned()
-            .map(|(_, v)| v)
-            .collect();
+        let concurrent_vals = self.vals.iter().cloned().map(|(_, v)| v).collect();
 
         ReadCtx {
             add_clock: clock.clone(),
             rm_clock: clock,
-            val: concurrent_vals
+            val: concurrent_vals,
         }
     }
 
     /// A clock with latest versions of all actors operating on this register
     fn clock(&self) -> VClock<A> {
-        self.vals.iter()
+        self.vals
+            .iter()
             .fold(VClock::new(), |mut accum_clock, (c, _)| {
                 accum_clock.merge(c.clone());
                 accum_clock

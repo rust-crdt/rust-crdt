@@ -1,14 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
 use hashbrown::HashMap;
-use std::fmt::Debug;
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Debug;
 use std::mem;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::traits::{Causal, CvRDT, CmRDT};
-use crate::vclock::{Dot, VClock, Actor};
-use crate::ctx::{ReadCtx, AddCtx, RmCtx};
+use crate::ctx::{AddCtx, ReadCtx, RmCtx};
+use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::vclock::{Actor, Dot, VClock};
 
 /// Key Trait alias to reduce redundancy in type decl.
 pub trait Key: Debug + Ord + Clone {}
@@ -17,10 +17,12 @@ impl<T: Debug + Ord + Clone> Key for T {}
 /// Val Trait alias to reduce redundancy in type decl.
 pub trait Val<A: Actor>: Debug + Default + Clone + Causal<A> + CmRDT + CvRDT {}
 
-impl<A, T> Val<A> for T where
+impl<A, T> Val<A> for T
+where
     A: Actor,
-    T: Debug + Default + Clone + Causal<A> + CmRDT + CvRDT
-{}
+    T: Debug + Default + Clone + Causal<A> + CmRDT + CvRDT,
+{
+}
 
 /// Map CRDT - Supports Composition of CRDT's with reset-remove semantics.
 ///
@@ -37,7 +39,7 @@ pub struct Map<K: Key, V: Val<A>, A: Actor> {
     // be greator or equal to all Entry.clock's in the Map.
     clock: VClock<A>,
     entries: BTreeMap<K, Entry<V, A>>,
-    deferred: HashMap<VClock<A>, BTreeSet<K>>
+    deferred: HashMap<VClock<A>, BTreeSet<K>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,7 +48,7 @@ struct Entry<V: Val<A>, A: Actor> {
     clock: VClock<A>,
 
     // The nested CRDT
-    val: V
+    val: V,
 }
 
 /// Operations which can be applied to the Map CRDT
@@ -59,7 +61,7 @@ pub enum Op<K: Key, V: Val<A>, A: Actor> {
         /// The clock under which we will perform this remove
         clock: VClock<A>,
         /// Key to remove
-        keyset: BTreeSet<K>
+        keyset: BTreeSet<K>,
     },
     /// Update an entry in the map
     Up {
@@ -68,8 +70,8 @@ pub enum Op<K: Key, V: Val<A>, A: Actor> {
         /// Key of the value to update
         key: K,
         /// The operation to apply on the value under `key`
-        op: V::Op
-    }
+        op: V::Op,
+    },
 }
 
 impl<K: Key, V: Val<A>, A: Actor> Default for Map<K, V, A> {
@@ -114,7 +116,7 @@ impl<K: Key, V: Val<A>, A: Actor> CmRDT for Map<K, V, A> {
 
     fn apply(&mut self, op: Self::Op) {
         match op {
-            Op::Nop => { /* do nothing */ },
+            Op::Nop => { /* do nothing */ }
             Op::Rm { clock, keyset } => self.apply_keyset_rm(keyset, clock),
             Op::Up { dot, key, op } => {
                 if self.clock.get(&dot.actor) >= dot.counter {
@@ -122,11 +124,10 @@ impl<K: Key, V: Val<A>, A: Actor> CmRDT for Map<K, V, A> {
                     return;
                 }
 
-                let entry = self.entries.entry(key)
-                    .or_insert_with(|| Entry {
-                        clock: VClock::default(),
-                        val: V::default()
-                    });
+                let entry = self.entries.entry(key).or_insert_with(|| Entry {
+                    clock: VClock::default(),
+                    val: V::default(),
+                });
 
                 entry.clock.apply(dot.clone());
                 entry.val.apply(op);
@@ -231,8 +232,8 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
         Map {
             clock: VClock::new(),
             entries: BTreeMap::new(),
-            deferred: HashMap::new()
-         }
+            deferred: HashMap::new(),
+        }
     }
 
     /// Returns true if the map has no entries, false otherwise
@@ -240,7 +241,7 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
-            val: self.entries.is_empty()
+            val: self.entries.is_empty(),
         }
     }
 
@@ -249,7 +250,7 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
-            val: self.entries.len()
+            val: self.entries.len(),
         }
     }
 
@@ -262,22 +263,22 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
             rm_clock: entry_opt
                 .map(|map_entry| map_entry.clock.clone())
                 .unwrap_or_default(),
-            val: entry_opt
-                .map(|map_entry| map_entry.val.clone())
+            val: entry_opt.map(|map_entry| map_entry.val.clone()),
         }
     }
 
     /// Update a value under some key, if the key is not present in the map,
     /// the updater will be given the result of V::default().
     pub fn update<F, I>(&self, key: I, ctx: AddCtx<A>, f: F) -> Op<K, V, A>
-        where F: FnOnce(&V, AddCtx<A>) -> V::Op,
-              I: Into<K>
+    where
+        F: FnOnce(&V, AddCtx<A>) -> V::Op,
+        I: Into<K>,
     {
         let key = key.into();
         let dot = ctx.dot.clone();
         let op = match self.entries.get(&key).map(|e| &e.val) {
             Some(data) => f(&data, ctx),
-            None => f(&V::default(), ctx)
+            None => f(&V::default(), ctx),
         };
 
         Op::Up { dot, key, op }
@@ -287,10 +288,13 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
     pub fn rm(&self, key: impl Into<K>, ctx: RmCtx<A>) -> Op<K, V, A> {
         let mut keyset = BTreeSet::new();
         keyset.insert(key.into());
-        Op::Rm { clock: ctx.clock, keyset: keyset }
+        Op::Rm {
+            clock: ctx.clock,
+            keyset: keyset,
+        }
     }
 
-    /// apply the pending deferred removes 
+    /// apply the pending deferred removes
     fn apply_deferred(&mut self) {
         let deferred = mem::replace(&mut self.deferred, HashMap::new());
         for (clock, keys) in deferred {
@@ -323,11 +327,9 @@ impl<K: Key, V: Val<A>, A: Actor> Map<K, V, A> {
                 // we need to log this in our deferred remove map, so
                 // that we can delete keys that we haven't seen yet but
                 // have been seen by this clock
-                let deferred_set = self.deferred
-                    .entry(clock)
-                    .or_default();
+                let deferred_set = self.deferred.entry(clock).or_default();
                 deferred_set.append(&mut keyset);
-            },
+            }
             _ => { /* we've seen all keys this clock has seen */ }
         }
     }
@@ -342,7 +344,7 @@ mod test {
     type TestActor = u8;
     type TestKey = u8;
     type TestVal = MVReg<u8, TestActor>;
-    type TestMap =  Map<TestKey, Map<TestKey, TestVal, TestActor>, TestActor>;
+    type TestMap = Map<TestKey, Map<TestKey, TestVal, TestActor>, TestActor>;
 
     #[test]
     fn test_get() {
@@ -352,14 +354,17 @@ mod test {
 
         m.clock.apply(m.clock.inc(1));
 
-        m.entries.insert(0, Entry {
-            clock: m.clock.clone(),
-            val: Map::default()
-        });
+        m.entries.insert(
+            0,
+            Entry {
+                clock: m.clock.clone(),
+                val: Map::default(),
+            },
+        );
 
         assert_eq!(m.get(&0).val, Some(Map::new()));
     }
-    
+
     #[test]
     fn test_op_exchange_converges_quickcheck1() {
         let op_actor1 = Op::Up {
@@ -370,23 +375,23 @@ mod test {
                 key: 0,
                 op: mvreg::Op::Put {
                     clock: Dot::new(0, 3).into(),
-                    val: 0
-                }
-            }
+                    val: 0,
+                },
+            },
         };
         let op_1_actor2 = Op::Up {
             dot: Dot::new(1, 1),
             key: 9,
             op: Op::Rm {
                 clock: Dot::new(1, 1).into(),
-                keyset: vec![0].into_iter().collect()
-            }
+                keyset: vec![0].into_iter().collect(),
+            },
         };
         let op_2_actor2 = Op::Rm {
             clock: Dot::new(1, 2).into(),
-            keyset: vec![9].into_iter().collect()
+            keyset: vec![9].into_iter().collect(),
         };
-        
+
         let mut m1: TestMap = Map::new();
         let mut m2: TestMap = Map::new();
 
@@ -403,14 +408,14 @@ mod test {
             m2.deferred.get(&Dot::new(1, 2).into()),
             Some(&vec![9].into_iter().collect())
         );
-        
+
         // m1 <- m2
         m1.apply(op_1_actor2);
         m1.apply(op_2_actor2);
-        
+
         // m2 <- m1
         m2.apply(op_actor1);
-        
+
         // m1 <- m2 == m2 <- m1
         assert_eq!(m1, m2);
     }
@@ -420,31 +425,30 @@ mod test {
         let mut m1: Map<u8, Orswot<u8, u8>, u8> = Map {
             clock: VClock::from(Dot::new(75, 1)),
             entries: BTreeMap::new(),
-            deferred: HashMap::new()
+            deferred: HashMap::new(),
         };
 
         let mut m2: Map<u8, Orswot<u8, u8>, u8> = Map {
-            clock: vec![Dot::new(75, 1), Dot::new(93, 1)]
-                .into_iter()
-                .collect(),
-            entries: vec![
-                (101, Entry {
-                    clock: vec![Dot::new(75, 1), Dot::new(93, 1)]
-                        .into_iter()
-                        .collect(),
+            clock: vec![Dot::new(75, 1), Dot::new(93, 1)].into_iter().collect(),
+            entries: vec![(
+                101,
+                Entry {
+                    clock: vec![Dot::new(75, 1), Dot::new(93, 1)].into_iter().collect(),
                     val: Orswot {
-                        clock: vec![Dot::new(75, 1), Dot::new(93, 1)]
-                            .into_iter()
-                            .collect(),
+                        clock: vec![Dot::new(75, 1), Dot::new(93, 1)].into_iter().collect(),
                         entries: vec![
                             (1, VClock::from(Dot::new(75, 1))),
-                            (2, VClock::from(Dot::new(93, 1)))
-                        ].into_iter().collect(),
-                        deferred: HashMap::new()
-                    }
-                })
-            ].into_iter().collect(),
-            deferred: HashMap::new()
+                            (2, VClock::from(Dot::new(93, 1))),
+                        ]
+                        .into_iter()
+                        .collect(),
+                        deferred: HashMap::new(),
+                    },
+                },
+            )]
+            .into_iter()
+            .collect(),
+            deferred: HashMap::new(),
         };
 
         m1.merge(m2.clone());
@@ -452,27 +456,26 @@ mod test {
         assert_eq!(
             m1,
             Map {
-                clock: vec![Dot::new(75, 1), Dot::new(93, 1)]
-                    .into_iter()
-                    .collect(),
-                entries: vec![
-                    (101, Entry {
+                clock: vec![Dot::new(75, 1), Dot::new(93, 1)].into_iter().collect(),
+                entries: vec![(
+                    101,
+                    Entry {
                         clock: Dot::new(93, 1).into(),
                         val: Orswot {
-                            clock: vec![Dot::new(93, 1)]
+                            clock: vec![Dot::new(93, 1)].into_iter().collect(),
+                            entries: vec![(2, VClock::from(Dot::new(93, 1)))]
                                 .into_iter()
                                 .collect(),
-                            entries: vec![
-                                (2, VClock::from(Dot::new(93, 1)))
-                            ].into_iter().collect(),
                             deferred: HashMap::new()
                         }
-                    })
-                ].into_iter().collect(),
+                    }
+                )]
+                .into_iter()
+                .collect(),
                 deferred: HashMap::new()
             }
         );
-        
+
         m2.merge(m1.clone());
 
         assert_eq!(m1, m2);

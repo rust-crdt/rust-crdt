@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::vclock::{Actor, VClock, Dot};
 use crate::traits::CmRDT;
+use crate::vclock::{Actor, Dot, VClock};
 
 /// ReadCtx's are used to extract data from CRDT's while maintaining some causal history.
 /// You should store ReadCtx's close to where mutation is exposed to the user.
@@ -17,7 +17,7 @@ pub struct ReadCtx<V, A: Actor> {
     pub rm_clock: VClock<A>,
 
     /// the data read from the CRDT
-    pub val: V
+    pub val: V,
 }
 
 /// AddCtx is used for mutations add new information to a CRDT
@@ -27,18 +27,17 @@ pub struct AddCtx<A: Actor> {
     pub clock: VClock<A>,
 
     /// The Actor and the Actor's version at the time of the add
-    pub dot: Dot<A>
+    pub dot: Dot<A>,
 }
 
 /// RmCtx is used for mutations that remove information from a CRDT
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RmCtx<A: Actor> {
     /// The removing vclock context
-    pub clock: VClock<A>
+    pub clock: VClock<A>,
 }
 
 impl<V, A: Actor> ReadCtx<V, A> {
-
     /// Derives an AddCtx for a given actor from a ReadCtx
     pub fn derive_add_ctx(&self, actor: A) -> AddCtx<A> {
         let mut clock = self.add_clock.clone();
@@ -50,7 +49,7 @@ impl<V, A: Actor> ReadCtx<V, A> {
     /// Derives a RmCtx from a ReadCtx
     pub fn derive_rm_ctx(&self) -> RmCtx<A> {
         RmCtx {
-            clock: self.rm_clock.clone()
+            clock: self.rm_clock.clone(),
         }
     }
 }

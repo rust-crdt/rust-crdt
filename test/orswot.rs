@@ -1,8 +1,8 @@
 extern crate crdts;
 extern crate rand;
 
+use crdts::{orswot::Op, *};
 use hashbrown::HashSet;
-use crdts::{*, orswot::Op};
 
 const ACTOR_MAX: u8 = 11;
 
@@ -15,18 +15,14 @@ fn build_opvec(op_prims: Vec<(u8, u8, u8, u64)>) -> OpVec {
     let mut ops = Vec::new();
     for (actor, member, choice, counter) in op_prims {
         let op = match choice % 2 {
-            0 => {
-                Op::Add {
-                    member,
-                    dot: Dot { actor, counter }
-                }
+            0 => Op::Add {
+                member,
+                dot: Dot { actor, counter },
             },
-            _ => {
-                Op::Rm {
-                    members: vec![member].into_iter().collect(),
-                    clock: Dot { actor, counter }.into()
-                }
-            }
+            _ => Op::Rm {
+                members: vec![member].into_iter().collect(),
+                clock: Dot { actor, counter }.into(),
+            },
         };
         ops.push((actor, op));
     }
@@ -103,7 +99,9 @@ fn adds_dont_destroy_causality() {
     // should descend from vclock { 1->1, 2->1 }
     assert_eq!(
         c_element_ctx.rm_clock,
-        vec![Dot::new("A", 1), Dot::new("B", 1)].into_iter().collect()
+        vec![Dot::new("A", 1), Dot::new("B", 1)]
+            .into_iter()
+            .collect()
     );
 
     a.apply(a.add("element", a.read().derive_add_ctx("C")));
@@ -111,10 +109,7 @@ fn adds_dont_destroy_causality() {
     a.apply(a.add("element", a.read().derive_add_ctx("A")));
 
     a.merge(b);
-    assert_eq!(
-        a.read().val,
-        vec!["element"].into_iter().collect()
-    );
+    assert_eq!(a.read().val, vec!["element"].into_iter().collect());
 }
 
 // a bug found with rust quickcheck where identical entries
@@ -214,7 +209,13 @@ fn test_no_dots_left_test() {
 fn test_dead_node_update() {
     let mut a = Orswot::new();
     let a_op = a.add(0, a.read().derive_add_ctx("A"));
-    assert_eq!(a_op, Op::Add { dot: Dot::new("A", 1), member: 0 });
+    assert_eq!(
+        a_op,
+        Op::Add {
+            dot: Dot::new("A", 1),
+            member: 0
+        }
+    );
 
     a.apply(a_op);
     assert_eq!(a.contains(&0).rm_clock, VClock::from(Dot::new("A", 1)));
@@ -224,7 +225,9 @@ fn test_dead_node_update() {
     let bctx = b.read();
     assert_eq!(
         bctx.add_clock,
-        vec![Dot::new("A", 1), Dot::new("B", 1)].into_iter().collect()
+        vec![Dot::new("A", 1), Dot::new("B", 1)]
+            .into_iter()
+            .collect()
     );
 
     a.apply(a.rm(0, bctx.derive_rm_ctx()));
@@ -236,22 +239,18 @@ fn test_reset_remove_semantics() {
     let mut m1: Map<u8, Orswot<u8, &str>, &str> = Map::new();
 
     m1.apply(
-        m1.update(
-            101,
-            m1.get(&101).derive_add_ctx("A"),
-            |set, ctx| set.add(1, ctx.clone())
-        )
+        m1.update(101, m1.get(&101).derive_add_ctx("A"), |set, ctx| {
+            set.add(1, ctx.clone())
+        }),
     );
 
     let mut m2 = m1.clone();
 
     m1.apply(m1.rm(101, m1.get(&101).derive_rm_ctx()));
     m2.apply(
-        m2.update(
-            101,
-            m2.get(&101).derive_add_ctx("B"),
-            |set, ctx| set.add(2, ctx.clone())
-        )
+        m2.update(101, m2.get(&101).derive_add_ctx("B"), |set, ctx| {
+            set.add(2, ctx.clone())
+        }),
     );
 
     assert_eq!(m1.get(&101).val, None);

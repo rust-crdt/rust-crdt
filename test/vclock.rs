@@ -109,9 +109,7 @@ fn test_forget() {
     let b: VClock<u8> = vec![Dot::new(1, 5), Dot::new(2, 3), Dot::new(5, 8)]
         .into_iter()
         .collect();
-    let expected: VClock<u8> = vec![Dot::new(5, 9)]
-        .into_iter()
-        .collect();
+    let expected: VClock<u8> = vec![Dot::new(5, 9)].into_iter().collect();
 
     a.forget(&b);
     assert_eq!(a, expected);
@@ -119,15 +117,11 @@ fn test_forget() {
 
 #[test]
 fn test_merge() {
-    let mut a: VClock<u8> = vec![Dot::new(1, 1), Dot::new(4, 4)]
-        .into_iter()
-        .collect();
-    let b: VClock<u8> = vec![Dot::new(3, 3), Dot::new(4, 3)]
-        .into_iter()
-        .collect();
+    let mut a: VClock<u8> = vec![Dot::new(1, 1), Dot::new(4, 4)].into_iter().collect();
+    let b: VClock<u8> = vec![Dot::new(3, 3), Dot::new(4, 3)].into_iter().collect();
 
     a.merge(b);
-    
+
     let expected: VClock<u8> = vec![Dot::new(1, 1), Dot::new(3, 3), Dot::new(4, 4)]
         .into_iter()
         .collect();

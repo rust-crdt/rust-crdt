@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::error::{self, Error, Result};
-use crate::traits::{FunkyCvRDT, FunkyCmRDT};
+use crate::traits::{FunkyCmRDT, FunkyCvRDT};
 
 /// Trait bound alias for lwwreg vals
 pub trait Val: Debug + Clone + PartialEq {}
@@ -12,7 +12,6 @@ impl<T: Debug + Clone + PartialEq> Val for T {}
 /// `Marker` must grow monotonically *and* must be globally unique
 pub trait Marker: Debug + Clone + Ord {}
 impl<T: Debug + Clone + Ord> Marker for T {}
-
 
 /// `LWWReg` is a simple CRDT that contains an arbitrary value
 /// along with an `Ord` that tracks causality. It is the responsibility
@@ -31,7 +30,7 @@ impl<V: Val + Default, M: Marker + Default> Default for LWWReg<V, M> {
     fn default() -> LWWReg<V, M> {
         LWWReg {
             val: V::default(),
-            marker: M::default()
+            marker: M::default(),
         }
     }
 }
@@ -115,39 +114,42 @@ mod test {
     #[test]
     fn test_default() {
         let reg = LWWReg::default();
-        assert_eq!(reg, LWWReg { val: "", marker: 0});
+        assert_eq!(reg, LWWReg { val: "", marker: 0 });
     }
 
     #[test]
     fn test_update() {
-        let mut reg = LWWReg {val: 123, marker: 0};
+        let mut reg = LWWReg {
+            val: 123,
+            marker: 0,
+        };
 
         // normal update: new marker is a descended of current marker
         // EXPECTED: success, the val and marker are update
         assert!(reg.update(32, 2).is_ok());
-        assert_eq!(reg, LWWReg {val: 32, marker: 2});
+        assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // stale update: new marker is an ancester of the current marker
         // EXPECTED: succes, no-op
         assert!(reg.update(57, 1).is_ok());
-        assert_eq!(reg, LWWReg {val: 32, marker: 2});
+        assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // redundant update: new marker and val is same as of the current state
         // EXPECTED: success, no-op
         assert!(reg.update(32, 2).is_ok());
-        assert_eq!(reg, LWWReg {val: 32, marker: 2});
+        assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // bad update: new marker same as of the current marker but not value
         // EXPECTED: error
         assert_eq!(reg.update(4000, 2), Err(Error::ConflictingMarker));
-        assert_eq!(reg, LWWReg {val: 32, marker: 2});
+        assert_eq!(reg, LWWReg { val: 32, marker: 2 });
     }
 
     fn build_from_prim(prim: (u8, u16)) -> LWWReg<u8, (u16, u8)> {
         // we make the marker a tuple so that we avoid conflicts
         LWWReg {
             val: prim.0,
-            marker: (prim.1, prim.0)
+            marker: (prim.1, prim.0),
         }
     }
 
