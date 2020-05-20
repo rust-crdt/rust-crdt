@@ -1,12 +1,12 @@
 [package]
 name = "crdts"
 description = "Practical serializable thoroughly tested CRDTs (ORSWOT, counters, LWW) ported from riak_dt"
-version = "3.0.0"
+version = "4.0.0"
 authors = ["Tyler Neely <t@jujit.su>", "David Rusu <davidrusu.me@gmail.com>"]
 license = "Apache-2.0"
 homepage = "https://github.com/rust-crdt/rust-crdt"
 repository = "https://github.com/rust-crdt/rust-crdt"
-documentation = "http://rust-crdt.github.io/rust-crdt/docs/crdts/crdts/"
+documentation = "https://docs.rs/crdts"
 keywords = ["crdt", "data-structures", "distributed-systems", "vector-clock", "riak"]
 edition = "2018"
 
