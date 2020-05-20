@@ -12,13 +12,13 @@ jobs:
       - name: Checkout sources
       - uses: actions/checkout@v2
 
-      - name: Install toolchain
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          override: true
+      # - name: Install toolchain
+      # - uses: actions-rs/toolchain@v1
+      #   with:
+      #     toolchain: ${{ matrix.toolchain }}
+      #     override: true
 
-      - name: cargo test
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      # - name: cargo test
+      # - uses: actions-rs/cargo@v1
+      #   with:
+      #     command: test
