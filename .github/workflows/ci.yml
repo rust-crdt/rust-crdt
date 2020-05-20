@@ -27,7 +27,13 @@ jobs:
 
       - uses: actions-rs/cargo@v1
         with:
-          command: fmt -- --check
+          command: test
+          args: --examples
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
 
       - uses: actions-rs/cargo@v1
         with:
