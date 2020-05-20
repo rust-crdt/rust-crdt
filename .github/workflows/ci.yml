@@ -1,0 +1,43 @@
+name: CRDT's CI Testing
+
+on: [push]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+	toolchain: [stable, nightly]
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+      - uses: actions/checkout@v2
+
+      - name: Install toolchain
+      - uses: actions-rs/toolchain@v1
+      	with:
+          toolchain: ${{ matrix.toolchain }}
+	  override: true
+	  components: [rustfmt, clippy]
+
+      - name: cargo test
+      - uses: actions-rs/cargo@v1
+        with:
+	  command: test
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+      - uses: actions/checkout@v2
+
+      - name: Install toolchain
+      - uses: actions-rs/toolchain@v1
+      	with:
+          toolchain: ${{ matrix.toolchain }}
+	  override: true
+	  components: [rustfmt, clippy]
+
+      - name: cargo test
+      - uses: actions-rs/cargo@v1
+        with:
+	  command: test
