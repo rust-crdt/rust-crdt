@@ -128,7 +128,7 @@ impl<A: Actor, T: CausalOp<A>> CausalityBarrier<A, T> {
     }
 
     fn saw_site_dot(&self, dot: &Dot<A>) -> bool {
-	// TODO: shouldn't need to deconstruct a dot like this
+        // TODO: shouldn't need to deconstruct a dot like this
         match self.peers.get(&dot.actor) {
             Some(ent) => ent.is_ready(dot.counter),
             None => false,
