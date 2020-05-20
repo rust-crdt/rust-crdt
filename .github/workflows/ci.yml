@@ -15,13 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # - name: Install toolchain
-      # - uses: actions-rs/toolchain@v1
-      #   with:
-      #     toolchain: ${{ matrix.toolchain }}
-      #     override: true
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          override: true
 
-      # - name: cargo test
-      # - uses: actions-rs/cargo@v1
-      #   with:
-      #     command: test
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
