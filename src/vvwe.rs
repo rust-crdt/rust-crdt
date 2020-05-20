@@ -83,12 +83,18 @@ pub trait CausalOp<A> {
     fn dot(&self) -> Dot<A>;
 }
 
-impl<A: Actor, T: CausalOp<A>> CausalityBarrier<A, T> {
-    pub fn new() -> Self {
+impl<A: Actor, T: CausalOp<A>> Default for CausalityBarrier<A, T> {
+    fn default() -> Self {
         CausalityBarrier {
             peers: HashMap::new(),
             buffer: HashMap::new(),
         }
+    }
+}
+
+impl<A: Actor, T: CausalOp<A>> CausalityBarrier<A, T> {
+    pub fn new() -> Self {
+        CausalityBarrier::default()
     }
 
     pub fn ingest(&mut self, op: T) -> Option<T> {
