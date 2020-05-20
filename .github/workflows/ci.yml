@@ -6,7 +6,7 @@ jobs:
   test:
     strategy:
       matrix:
-	toolchain: [stable, nightly]
+        toolchain: [stable, nightly]
 
     runs-on: ubuntu-latest
     steps:
@@ -15,15 +15,15 @@ jobs:
 
       - name: Install toolchain
       - uses: actions-rs/toolchain@v1
-      	with:
+        with:
           toolchain: ${{ matrix.toolchain }}
-	  override: true
-	  components: [rustfmt, clippy]
+          override: true
+          components: [rustfmt, clippy]
 
       - name: cargo test
       - uses: actions-rs/cargo@v1
         with:
-	  command: test
+          command: test
   check:
     runs-on: ubuntu-latest
     steps:
@@ -32,12 +32,12 @@ jobs:
 
       - name: Install toolchain
       - uses: actions-rs/toolchain@v1
-      	with:
+        with:
           toolchain: ${{ matrix.toolchain }}
-	  override: true
-	  components: [rustfmt, clippy]
+          override: true
+          components: [rustfmt, clippy]
 
       - name: cargo test
       - uses: actions-rs/cargo@v1
         with:
-	  command: test
+          command: test
