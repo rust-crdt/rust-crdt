@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Actor, CmRDT, Dot};
 
 /// An `Entry` to the LSEQ consists of:
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Entry<T, A: Actor> {
     /// The identifier of the entry.
     pub id: Identifier<A>,
@@ -60,6 +60,7 @@ pub struct Entry<T, A: Actor> {
 /// An LSEQ tree is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LSeq<T, A: Actor> {
     seq: Vec<Entry<T, A>>,
     gen: IdentGen<A>,
@@ -67,13 +68,11 @@ pub struct LSeq<T, A: Actor> {
 }
 
 /// Operations that can be performed on an LSeq tree
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "op")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Op<T, A: Actor> {
     /// Insert an element
     Insert {
         /// Identifier to insert at
-        #[serde(flatten)]
         id: Identifier<A>,
         /// clock of site that issued insertion
         dot: Dot<A>,
@@ -84,7 +83,6 @@ pub enum Op<T, A: Actor> {
     Delete {
         /// The original clock information of the insertion we're removing
         remote: Dot<A>,
-        #[serde(flatten)]
         /// Identifier to remove
         id: Identifier<A>,
         /// id of site that issued delete
@@ -98,6 +96,15 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         LSeq {
             seq: Vec::new(),
             gen: IdentGen::new(id.clone()),
+            dot: Dot::new(id, 0),
+        }
+    }
+
+    /// Create an empty LSEQ with custom base size
+    pub fn new_with_args(id: A, base: u8, boundary: u64) -> Self {
+        LSeq {
+            seq: Vec::new(),
+            gen: IdentGen::new_with_args(id.clone(), base, boundary),
             dot: Dot::new(id, 0),
         }
     }
@@ -143,6 +150,12 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         self.dot.counter += 1;
         self.apply(op.clone());
         op
+    }
+
+    /// Perform a local insertion of an element at the end of the sequence.
+    pub fn append(&mut self, c: T) -> Op<T, A> {
+        let ix = self.seq.len();
+        self.insert_index(ix, c)
     }
 
     /// Perform a local deletion at `ix`.
@@ -192,6 +205,16 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
     /// Get the elements represented by the LSEQ.
     pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
         self.seq.iter().map(|Entry { val, .. }| val)
+    }
+
+    /// Get an element at an index from the sequence represented by the LSEQ.
+    pub fn get(&self, ix: usize) -> Option<&T> {
+        self.seq.get(ix).map(|Entry { val, .. }| val)
+    }
+
+    /// Get last element of the sequence represented by the LSEQ.
+    pub fn last(&self) -> Option<&T> {
+        self.seq.last().map(|Entry { val, .. }| val)
     }
 
     /// Actor who is initiating operations on this LSeq

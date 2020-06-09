@@ -52,6 +52,18 @@ fn test_is_empty() {
 }
 
 #[test]
+fn test_append() {
+    let mut site1 = LSeq::new(0);
+    assert!(site1.is_empty());
+
+    site1.append('a');
+    site1.append('b');
+    site1.append('c');
+
+    assert_eq!(site1.iter().collect::<String>(), "abc");
+}
+
+#[test]
 fn test_out_of_order_inserts() {
     let mut site1 = LSeq::new(0);
     site1.insert_index(0, 'a');
@@ -59,6 +71,17 @@ fn test_out_of_order_inserts() {
     site1.insert_index(1, 'b');
 
     assert_eq!(site1.iter().collect::<String>(), "abc");
+}
+
+#[test]
+fn test_append_mixed_with_inserts() {
+    let mut site1 = LSeq::new(0);
+    site1.append('a');
+    site1.insert_index(0, 'b');
+    site1.append('c');
+    site1.insert_index(1, 'd');
+
+    assert_eq!(site1.iter().collect::<String>(), "bdac");
 }
 
 #[test]
@@ -70,6 +93,16 @@ fn test_delete_of_index() {
 
     site1.delete_index(0);
     assert_eq!(site1.iter().collect::<String>(), "b");
+}
+
+#[test]
+fn test_get() {
+    let mut site1 = LSeq::new(0);
+    site1.append('a');
+    site1.append('b');
+
+    assert_eq!(site1.get(0), Some(&'a'));
+    assert_eq!(site1.get(1), Some(&'b'));
 }
 
 #[test]

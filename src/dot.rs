@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::quickcheck::{Arbitrary, Gen};
 
 /// Dot is a version marker for a single actor
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord)]
 pub struct Dot<A> {
     /// The actor identifier
     pub actor: A,
