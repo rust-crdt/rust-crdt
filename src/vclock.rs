@@ -32,7 +32,7 @@ use crate::{Actor, Causal, CmRDT, CvRDT, Dot};
 /// It can tell you if something causally descends something else,
 /// or if different replicas are "concurrent" (were mutated in
 /// isolation, and need to be resolved externally).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Ord)]
 pub struct VClock<A: Actor> {
     /// dots is the mapping from actors to their associated counters
     pub dots: BTreeMap<A, u64>,
