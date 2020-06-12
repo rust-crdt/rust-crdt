@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Actor, CmRDT, Dot};
 
 /// An `Entry` to the LSEQ consists of:
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
 pub struct Entry<T, A: Actor> {
     /// The identifier of the entry.
     pub id: Identifier<A>,
@@ -60,7 +60,7 @@ pub struct Entry<T, A: Actor> {
 /// An LSEQ tree is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
 pub struct LSeq<T, A: Actor> {
     seq: Vec<Entry<T, A>>,
     gen: IdentGen<A>,
@@ -68,7 +68,7 @@ pub struct LSeq<T, A: Actor> {
 }
 
 /// Operations that can be performed on an LSeq tree
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
 pub enum Op<T, A: Actor> {
     /// Insert an element
     Insert {
