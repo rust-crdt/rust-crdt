@@ -90,6 +90,22 @@ pub enum Op<T, A: Actor> {
     },
 }
 
+impl<T, A: Actor> Op<T, A> {
+    /// Return the Dot originating the operation
+    pub fn dot(&self) -> &Dot<A> {
+        match self {
+            Op::Insert { dot, .. } | Op::Delete { dot, .. } => dot,
+        }
+    }
+
+    /// Return the Identifier contained in the operation
+    pub fn id(&self) -> &Identifier<A> {
+        match self {
+            Op::Insert { id, .. } | Op::Delete { id, .. } => id,
+        }
+    }
+}
+
 impl<T: Clone, A: Actor> LSeq<T, A> {
     /// Create an empty LSEQ
     pub fn new(id: A) -> Self {
