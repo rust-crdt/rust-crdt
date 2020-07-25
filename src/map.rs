@@ -382,9 +382,9 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     /// assert_eq!(items, &[50, 100, 200]);
     /// ```
     pub fn keys(&self) -> impl IntoIterator<Item = ReadCtx<&K, A>> {
-        self.entries.keys().map(move |k| ReadCtx {
+        self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
-            rm_clock: self.clock.clone(),
+            rm_clock: v.clock.clone(),
             val: k,
         })
     }
@@ -428,7 +428,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     pub fn values(&self) -> impl IntoIterator<Item = ReadCtx<&V, A>> {
         self.entries.values().map(move |v| ReadCtx {
             add_clock: self.clock.clone(),
-            rm_clock: self.clock.clone(),
+            rm_clock: v.clock.clone(),
             val: &v.val,
         })
     }
@@ -473,7 +473,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     pub fn iter(&self) -> impl IntoIterator<Item = ReadCtx<(&K, &V), A>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
-            rm_clock: self.clock.clone(),
+            rm_clock: v.clock.clone(),
             val: (k, &v.val),
         })
     }
