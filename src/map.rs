@@ -344,6 +344,30 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
             _ => { /* we've seen all keys this clock has seen */ }
         }
     }
+
+    fn keys(&self) -> impl IntoIterator<Item = ReadCtx<&K, A>> {
+        self.entries.keys().map(move |k| ReadCtx {
+            add_clock: self.clock.clone(),
+            rm_clock: self.clock.clone(),
+            val: k,
+        })
+    }
+
+    fn values(&self) -> impl IntoIterator<Item = ReadCtx<&V, A>> {
+        self.entries.values().map(move |v| ReadCtx {
+            add_clock: self.clock.clone(),
+            rm_clock: self.clock.clone(),
+            val: &v.val,
+        })
+    }
+
+    fn iter(&self) -> impl IntoIterator<Item = ReadCtx<(&K, &V), A>> {
+        self.entries.iter().map(move |(k, v)| ReadCtx {
+            add_clock: self.clock.clone(),
+            rm_clock: self.clock.clone(),
+            val: (k, &v.val),
+        })
+    }
 }
 
 #[cfg(test)]
