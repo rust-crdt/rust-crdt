@@ -345,7 +345,43 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
         }
     }
 
-    fn keys(&self) -> impl IntoIterator<Item = ReadCtx<&K, A>> {
+    /// Gets an iterator over the keys of the `Map`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use crdts::Map;
+    /// use crdts::MVReg;
+    /// use crdts::CmRDT;
+    ///
+    /// type Actor = &'static str;
+    /// type Key = &'static str;
+    ///
+    /// let actor = "actor";
+    ///
+    /// let mut map: Map<i32, MVReg<Key, Actor>, Actor> = Map::new();
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(100, add_ctx, |v, a| v.write("foo", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(50, add_ctx, |v, a| v.write("bar", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
+    ///
+    ///
+    /// let mut items = Vec::new();
+    ///
+    /// for read_ctx in map.keys() {
+    ///     items.push(*read_ctx.val);
+    /// }
+    ///
+    /// items.sort();
+    ///
+    /// assert_eq!(items, &[50, 100, 200]);
+    /// ```
+    pub fn keys(&self) -> impl IntoIterator<Item = ReadCtx<&K, A>> {
         self.entries.keys().map(move |k| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -353,7 +389,43 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
         })
     }
 
-    fn values(&self) -> impl IntoIterator<Item = ReadCtx<&V, A>> {
+    /// Gets an iterator over the values of the `Map`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use crdts::Map;
+    /// use crdts::MVReg;
+    /// use crdts::CmRDT;
+    ///
+    /// type Actor = &'static str;
+    /// type Key = &'static str;
+    ///
+    /// let actor = "actor";
+    ///
+    /// let mut map: Map<i32, MVReg<Key, Actor>, Actor> = Map::new();
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(100, add_ctx, |v, a| v.write("foo", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(50, add_ctx, |v, a| v.write("bar", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
+    ///
+    ///
+    /// let mut items = Vec::new();
+    ///
+    /// for read_ctx in map.values() {
+    ///     items.push(read_ctx.val.read().val[0]);
+    /// }
+    ///
+    /// items.sort();
+    ///
+    /// assert_eq!(items, &["bar", "baz", "foo"]);
+    /// ```
+    pub fn values(&self) -> impl IntoIterator<Item = ReadCtx<&V, A>> {
         self.entries.values().map(move |v| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -361,7 +433,44 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
         })
     }
 
-    fn iter(&self) -> impl IntoIterator<Item = ReadCtx<(&K, &V), A>> {
+    /// Gets an iterator over the entries of the `Map`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use crdts::Map;
+    /// use crdts::MVReg;
+    /// use crdts::CmRDT;
+    ///
+    /// type Actor = &'static str;
+    /// type Key = &'static str;
+    ///
+    /// let actor = "actor";
+    ///
+    /// let mut map: Map<i32, MVReg<Key, Actor>, Actor> = Map::new();
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(100, add_ctx, |v, a| v.write("foo", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(50, add_ctx, |v, a| v.write("bar", a)));
+    ///
+    /// let add_ctx = map.read_ctx().derive_add_ctx(actor);
+    /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
+    ///
+    ///
+    /// let mut items = Vec::new();
+    ///
+    /// for read_ctx in map.iter() {
+    ///     let (key, value) = read_ctx.val;
+    ///     items.push((*key, value.read().val[0]));
+    /// }
+    ///
+    /// items.sort();
+    ///
+    /// assert_eq!(items, &[(50, "bar"), (100, "foo"), (200, "baz")]);
+    /// ```
+    pub fn iter(&self) -> impl IntoIterator<Item = ReadCtx<(&K, &V), A>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
