@@ -328,7 +328,6 @@ mod test {
         };
         gen.alloc(&x, &y);
         let b = gen.alloc(&x, &y);
-        // println!("{:?} {:?} {:?}", x, b, y);
         assert!(x < b);
         assert!(b < y);
     }

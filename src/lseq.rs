@@ -223,14 +223,29 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         self.seq.iter().map(|Entry { val, .. }| val)
     }
 
+    /// Get the elements' Entry from the LSEQ.
+    pub fn iter_entries(&self) -> impl Iterator<Item = &Entry<T, A>> + '_ {
+        self.seq.iter()
+    }
+
     /// Get an element at an index from the sequence represented by the LSEQ.
     pub fn get(&self, ix: usize) -> Option<&T> {
         self.seq.get(ix).map(|Entry { val, .. }| val)
     }
 
+    /// Finds an element searching by its Identifier.
+    pub fn find(&self, ident: &Identifier<A>) -> Option<&Entry<T, A>> {
+        self.seq.iter().find(|Entry { id, .. }| id == ident)
+    }
+
     /// Get last element of the sequence represented by the LSEQ.
     pub fn last(&self) -> Option<&T> {
         self.seq.last().map(|Entry { val, .. }| val)
+    }
+
+    /// Get the last Entry of the sequence represented by the LSEQ.
+    pub fn last_entry(&self) -> Option<&Entry<T, A>> {
+        self.seq.last()
     }
 
     /// Actor who is initiating operations on this LSeq
