@@ -371,17 +371,13 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
     ///
     ///
-    /// let mut items = Vec::new();
+    /// let mut keys: Vec<_> = map.keys().map(|key_ctx| *key_ctx.val).collect();
     ///
-    /// for read_ctx in map.keys() {
-    ///     items.push(*read_ctx.val);
-    /// }
+    /// keys.sort();
     ///
-    /// items.sort();
-    ///
-    /// assert_eq!(items, &[50, 100, 200]);
+    /// assert_eq!(keys, &[50, 100, 200]);
     /// ```
-    pub fn keys(&self) -> impl IntoIterator<Item = ReadCtx<&K, A>> {
+    pub fn keys(&self) -> impl Iterator<Item = ReadCtx<&K, A>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),
@@ -415,17 +411,16 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
     ///
     ///
-    /// let mut items = Vec::new();
+    /// let mut values: Vec<_> = map
+    ///     .values()
+    ///     .map(|val_ctx| val_ctx.val.read().val[0])
+    ///     .collect();
     ///
-    /// for read_ctx in map.values() {
-    ///     items.push(read_ctx.val.read().val[0]);
-    /// }
+    /// values.sort();
     ///
-    /// items.sort();
-    ///
-    /// assert_eq!(items, &["bar", "baz", "foo"]);
+    /// assert_eq!(values, &["bar", "baz", "foo"]);
     /// ```
-    pub fn values(&self) -> impl IntoIterator<Item = ReadCtx<&V, A>> {
+    pub fn values(&self) -> impl Iterator<Item = ReadCtx<&V, A>> {
         self.entries.values().map(move |v| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),
@@ -459,18 +454,16 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     /// map.apply(map.update(200, add_ctx, |v, a| v.write("baz", a)));
     ///
     ///
-    /// let mut items = Vec::new();
-    ///
-    /// for read_ctx in map.iter() {
-    ///     let (key, value) = read_ctx.val;
-    ///     items.push((*key, value.read().val[0]));
-    /// }
+    /// let mut items: Vec<_> = map
+    ///     .iter()
+    ///     .map(|item_ctx| (*item_ctx.val.0, item_ctx.val.1.read().val[0]))
+    ///     .collect();
     ///
     /// items.sort();
     ///
     /// assert_eq!(items, &[(50, "bar"), (100, "foo"), (200, "baz")]);
     /// ```
-    pub fn iter(&self) -> impl IntoIterator<Item = ReadCtx<(&K, &V), A>> {
+    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<(&K, &V), A>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),
