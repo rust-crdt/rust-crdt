@@ -233,14 +233,14 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         self.seq.get(ix).map(|Entry { val, .. }| val)
     }
 
-    /// Finds an element searching by its Identifier.
-    pub fn find(&self, ident: &Identifier<A>) -> Option<&Entry<T, A>> {
+    /// Finds an entry searching by its Identifier.
+    pub fn find_entry(&self, ident: &Identifier<A>) -> Option<&Entry<T, A>> {
         self.seq.iter().find(|Entry { id, .. }| id == ident)
     }
 
     /// Get last element of the sequence represented by the LSEQ.
     pub fn last(&self) -> Option<&T> {
-        self.seq.last().map(|Entry { val, .. }| val)
+        self.last_entry().map(|Entry { val, .. }| val)
     }
 
     /// Get the last Entry of the sequence represented by the LSEQ.
