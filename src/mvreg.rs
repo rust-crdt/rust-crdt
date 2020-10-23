@@ -136,11 +136,12 @@ impl<V, A: Actor> CmRDT for MVReg<V, A> {
                     return;
                 }
                 // first filter out all values that are dominated by the Op clock
-                self.vals
-                    .retain(|(val_clock, _)| match val_clock.partial_cmp(&clock) {
-                        None | Some(Ordering::Greater) => true,
-                        _ => false,
-                    });
+                self.vals.retain(|(val_clock, _)| {
+                    matches!(
+                        val_clock.partial_cmp(&clock),
+                        None | Some(Ordering::Greater)
+                    )
+                });
 
                 // TAI: in the case were the Op has a context that already was present,
                 //      the above line would remove that value, the next lines would
