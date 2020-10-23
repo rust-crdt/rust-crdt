@@ -65,6 +65,12 @@ impl<A: Actor> GCounter<A> {
         self.inner.inc(actor)
     }
 
+    /// Generate Op to increment the counter by a number of steps.
+    pub fn inc_many(&self, actor: A, steps: u64) -> Dot<A> {
+        let steps = steps + self.inner.get(&actor);
+        Dot::new(actor, steps)
+    }
+
     /// Return the current sum of this counter.
     pub fn read(&self) -> BigUint {
         self.inner.iter().map(|dot| dot.counter).sum()
@@ -76,7 +82,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_basic() {
+    fn test_basic_by_one() {
         let mut a = GCounter::new();
         let mut b = GCounter::new();
         a.apply(a.inc("A"));
@@ -88,5 +94,22 @@ mod test {
         a.apply(a.inc("A"));
 
         assert_eq!(a.read(), b.read() + BigUint::from(1u8));
+    }
+
+    #[test]
+    fn test_basic_by_many() {
+        let mut a = GCounter::new();
+        let mut b = GCounter::new();
+        let steps = 3;
+
+        a.apply(a.inc_many("A", steps));
+        b.apply(b.inc_many("B", steps));
+
+        assert_eq!(a.read(), b.read());
+        assert_ne!(a, b);
+
+        a.apply(a.inc_many("A", steps));
+
+        assert_eq!(a.read(), b.read() + BigUint::from(steps));
     }
 }

@@ -105,6 +105,22 @@ impl<A: Actor> PNCounter<A> {
         }
     }
 
+    /// Generate an Op to increment the counter by a number of steps.
+    pub fn inc_many(&self, actor: A, steps: u64) -> Op<A> {
+        Op {
+            dot: self.p.inc_many(actor, steps),
+            dir: Dir::Pos,
+        }
+    }
+
+    /// Generate an Op to decrement the counter by a number of steps.
+    pub fn dec_many(&self, actor: A, steps: u64) -> Op<A> {
+        Op {
+            dot: self.n.inc_many(actor, steps),
+            dir: Dir::Neg,
+        }
+    }
+
     /// Return the current value of this counter (P-N).
     pub fn read(&self) -> BigInt {
         let p: BigInt = self.p.read().into();
@@ -165,7 +181,7 @@ mod test {
     }
 
     #[test]
-    fn test_basic() {
+    fn test_basic_by_one() {
         let mut a = PNCounter::new();
         assert_eq!(a.read(), 0.into());
 
@@ -180,5 +196,25 @@ mod test {
 
         a.apply(a.inc("A"));
         assert_eq!(a.read(), 2.into());
+    }
+
+    #[test]
+    fn test_basic_by_many() {
+        let mut a = PNCounter::new();
+        assert_eq!(a.read(), 0.into());
+
+        let steps = 3;
+
+        a.apply(a.inc_many("A", steps));
+        assert_eq!(a.read(), steps.into());
+
+        a.apply(a.inc_many("A", steps));
+        assert_eq!(a.read(), (2 * steps).into());
+
+        a.apply(a.dec_many("A", steps));
+        assert_eq!(a.read(), steps.into());
+
+        a.apply(a.inc_many("A", 1));
+        assert_eq!(a.read(), (1 + steps).into());
     }
 }
