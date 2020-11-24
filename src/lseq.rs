@@ -163,8 +163,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
             dot: self.dot.clone(),
             val,
         };
-        // TODO: refactor to follow the library API (don't apply ops immediately)
-        self.apply(op.clone());
+
         op
     }
 
@@ -191,8 +190,6 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
             remote: data.dot,
             dot: self.dot.clone(),
         };
-
-        self.apply(op.clone());
 
         Some(op)
     }

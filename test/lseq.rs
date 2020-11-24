@@ -24,9 +24,13 @@ impl Arbitrary for OperationList {
         let ops = (0..size)
             .filter_map(|_| {
                 if g.gen() || site1.len() == 0 {
-                    site1.delete_index(g.gen_range(0, site1.len() + 1))
+                    let op = site1.delete_index(g.gen_range(0, site1.len() + 1));
+                    site1.apply(op.clone()?);
+                    op
                 } else {
-                    site1.delete_index(g.gen_range(0, site1.len()))
+                    let op = site1.delete_index(g.gen_range(0, site1.len()));
+                    site1.apply(op.clone()?);
+                    op
                 }
             })
             .collect();
@@ -47,7 +51,8 @@ fn test_is_empty() {
     let mut site1 = LSeq::new(0);
     assert!(site1.is_empty());
 
-    site1.insert_index(0, 'a');
+    let op = site1.insert_index(0, 'a');
+    site1.apply(op);
     assert!(!site1.is_empty());
 }
 
@@ -56,9 +61,12 @@ fn test_append() {
     let mut site1 = LSeq::new(0);
     assert!(site1.is_empty());
 
-    site1.append('a');
-    site1.append('b');
-    site1.append('c');
+    let op = site1.append('a');
+    site1.apply(op);
+    let op = site1.append('b');
+    site1.apply(op);
+    let op = site1.append('c');
+    site1.apply(op);
 
     assert_eq!(site1.iter().collect::<String>(), "abc");
 }
@@ -66,9 +74,14 @@ fn test_append() {
 #[test]
 fn test_out_of_order_inserts() {
     let mut site1 = LSeq::new(0);
-    site1.insert_index(0, 'a');
-    site1.insert_index(1, 'c');
-    site1.insert_index(1, 'b');
+    let op = site1.insert_index(0, 'a');
+    site1.apply(op);
+
+    let op = site1.insert_index(1, 'c');
+    site1.apply(op);
+
+    let op = site1.insert_index(1, 'b');
+    site1.apply(op);
 
     assert_eq!(site1.iter().collect::<String>(), "abc");
 }
@@ -76,10 +89,17 @@ fn test_out_of_order_inserts() {
 #[test]
 fn test_append_mixed_with_inserts() {
     let mut site1 = LSeq::new(0);
-    site1.append('a');
-    site1.insert_index(0, 'b');
-    site1.append('c');
-    site1.insert_index(1, 'd');
+    let op = site1.append('a');
+    site1.apply(op);
+
+    let op = site1.insert_index(0, 'b');
+    site1.apply(op);
+
+    let op = site1.append('c');
+    site1.apply(op);
+
+    let op = site1.insert_index(1, 'd');
+    site1.apply(op);
 
     assert_eq!(site1.iter().collect::<String>(), "bdac");
 }
@@ -87,19 +107,24 @@ fn test_append_mixed_with_inserts() {
 #[test]
 fn test_delete_of_index() {
     let mut site1 = LSeq::new(0);
-    site1.insert_index(0, 'a');
-    site1.insert_index(1, 'b');
+    let op = site1.insert_index(0, 'a');
+    site1.apply(op);
+    let op = site1.insert_index(1, 'b');
+    site1.apply(op);
     assert_eq!(site1.iter().collect::<String>(), "ab");
 
-    site1.delete_index(0);
+    let op = site1.delete_index(0);
+    site1.apply(op.unwrap());
     assert_eq!(site1.iter().collect::<String>(), "b");
 }
 
 #[test]
 fn test_get() {
     let mut site1 = LSeq::new(0);
-    site1.append('a');
-    site1.append('b');
+    let op = site1.append('a');
+    site1.apply(op);
+    let op = site1.append('b');
+    site1.apply(op);
 
     assert_eq!(site1.get(0), Some(&'a'));
     assert_eq!(site1.get(1), Some(&'b'));
@@ -117,7 +142,8 @@ fn test_worst_case_inserts() {
     for _ in 0..n {
         let i = site.len() / 2;
         println!("inserting {}/{}", i, site.len());
-        site.insert_index(i, 'a');
+        let op = site.insert_index(i, 'a');
+        site.apply(op);
     }
     assert_eq!(site.len(), n);
 }
@@ -135,12 +161,14 @@ fn test_insert_followed_by_deletes() {
         let c = s1.next().unwrap();
         let ix = rng.gen_range(0, site1.len() + 1);
         let insert_op = site1.insert_index(ix, c);
+        site1.apply(insert_op.clone());
         site2.apply(insert_op);
 
         let delete_op =
             site2
                 .delete_index(ix)
                 .expect(&format!("ix@{} was out of bounds@{}", ix, site2.len()));
+        site2.apply(delete_op.clone());
         site1.apply(delete_op);
     }
 
@@ -177,6 +205,7 @@ fn test_mutual_insert_qc1() {
         let i = idx % (source.len() + 1);
         println!("{:?} inserting {} @ {}", source.actor(), elem, i);
         let op = source.insert_index(i, elem);
+        source.apply(op.clone());
         replica.apply(op);
     }
 
@@ -198,6 +227,7 @@ quickcheck! {
             };
             let i = idx % (source.len() + 1);
             let op = source.insert_index(i, elem);
+            source.apply(op.clone());
             replica.apply(op);
 
         }
