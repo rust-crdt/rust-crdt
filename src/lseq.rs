@@ -158,13 +158,11 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         assert!(&ix_ident < upper_id);
 
         self.dot.apply_inc();
-        let op = Op::Insert {
+        Op::Insert {
             id: ix_ident,
             dot: self.dot.clone(),
             val,
-        };
-
-        op
+        }
     }
 
     /// Perform a local insertion of an element at the end of the sequence.
