@@ -157,10 +157,9 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         assert!(lower_id < &ix_ident);
         assert!(&ix_ident < upper_id);
 
-        self.dot.apply_inc();
         Op::Insert {
             id: ix_ident,
-            dot: self.dot.clone(),
+            dot: self.dot.inc(),
             val,
         }
     }
@@ -182,11 +181,10 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
         let data = self.seq[ix].clone();
 
-        self.dot.apply_inc();
         let op = Op::Delete {
             id: data.id,
             remote: data.dot,
-            dot: self.dot.clone(),
+            dot: self.dot.inc(),
         };
 
         Some(op)
