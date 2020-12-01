@@ -131,24 +131,6 @@ fn test_get() {
 }
 
 #[test]
-fn test_worst_case_inserts() {
-    // by inserting always at the middle of the array, we grow the exponential tree beyond the
-    // max depth very quickly. This is not looking too good, we need to tune some params.
-
-    let mut site = LSeq::new(0);
-    // let mut site2 = LSeq::new((1));
-
-    let n = 86; // maximum reliable number of inserts we can do in this worst case example
-    for _ in 0..n {
-        let i = site.len() / 2;
-        println!("inserting {}/{}", i, site.len());
-        let op = site.insert_index(i, 'a');
-        site.apply(op);
-    }
-    assert_eq!(site.len(), n);
-}
-
-#[test]
 fn test_insert_followed_by_deletes() {
     let mut rng = rand::thread_rng();
 
