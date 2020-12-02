@@ -74,16 +74,23 @@ fn test_append() {
 #[test]
 fn test_out_of_order_inserts() {
     let mut site1 = LSeq::new(0);
-    let op = site1.insert_index(0, 'a');
-    site1.apply(op);
+    let mut site2 = LSeq::new(1);
+    let op1 = site1.insert_index(0, 'a');
+    site1.apply(op1.clone());
 
-    let op = site1.insert_index(1, 'c');
-    site1.apply(op);
+    let op2 = site1.insert_index(1, 'c');
+    site1.apply(op2.clone());
 
-    let op = site1.insert_index(1, 'b');
-    site1.apply(op);
+    let op3 = site1.insert_index(1, 'b');
+    site1.apply(op3.clone());
 
-    assert_eq!(site1.iter().collect::<String>(), "abc");
+    site2.apply(op3);
+    site2.apply(op1);
+    site2.apply(op2);
+
+    let site1_items = site1.iter().collect::<String>();
+    assert_eq!(site1_items, "abc");
+    assert_eq!(site1_items, site2.iter().collect::<String>());
 }
 
 #[test]
