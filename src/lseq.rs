@@ -42,7 +42,7 @@ pub mod ident;
 use ident::{IdentGen, Identifier};
 use serde::{Deserialize, Serialize};
 
-use crate::{Actor, CmRDT, Dot};
+use crate::{Actor, CmRDT, Dot, VClock};
 
 /// An `Entry` to the LSEQ consists of:
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
@@ -64,7 +64,7 @@ pub struct Entry<T, A: Actor> {
 pub struct LSeq<T, A: Actor> {
     seq: Vec<Entry<T, A>>,
     gen: IdentGen<A>,
-    dot: Dot<A>,
+    clock: VClock<A>,
 }
 
 /// Operations that can be performed on an LSeq tree
@@ -112,7 +112,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         LSeq {
             seq: Vec::new(),
             gen: IdentGen::new(id.clone()),
-            dot: Dot::new(id, 0),
+            clock: VClock::new(),
         }
     }
 
@@ -121,7 +121,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         LSeq {
             seq: Vec::new(),
             gen: IdentGen::new_with_args(id.clone(), base, boundary),
-            dot: Dot::new(id, 0),
+            clock: VClock::new(),
         }
     }
 
@@ -159,7 +159,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
         Op::Insert {
             id: ix_ident,
-            dot: self.dot.inc(),
+            dot: self.clock.dot(self.actor()).inc(),
             val,
         }
     }
@@ -184,7 +184,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         let op = Op::Delete {
             id: data.id,
             remote: data.dot,
-            dot: self.dot.inc(),
+            dot: self.clock.dot(self.actor()).inc(),
         };
 
         Some(op)
@@ -243,7 +243,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
     /// Actor who is initiating operations on this LSeq
     pub fn actor(&self) -> A {
-        self.dot.actor.clone()
+        self.gen.site_id.clone()
     }
 
     /// Insert an identifier and value in the LSEQ
@@ -272,7 +272,16 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     ///
     /// If the operation is a delete and the identifier is **not** present in the LSEQ instance the
     /// result is a no-op
+    ///
+    /// If the op's dot is less than current Vector Clock dot for that actor, the result is a no-op
     fn apply(&mut self, op: Self::Op) {
+        let op_dot = op.dot();
+
+        if op_dot <= &self.clock.dot(op_dot.actor.clone()) {
+            return;
+        }
+
+        self.clock.apply(op.dot().clone());
         match op {
             Op::Insert { id, dot, val } => self.insert(id, dot, val),
             Op::Delete { id, .. } => self.delete(id),

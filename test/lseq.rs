@@ -131,6 +131,57 @@ fn test_get() {
 }
 
 #[test]
+fn test_reapply_lseq_ops() {
+    let mut rng = rand::thread_rng();
+
+    let mut s1 = rng.sample_iter(Alphanumeric);
+
+    let mut site1 = LSeq::new(0);
+    let mut site2 = LSeq::new(1);
+
+    for _ in 0..5000 {
+        let c = s1.next().unwrap();
+        let ix = rng.gen_range(0, site1.len() + 1);
+        let insert_op = site1.insert_index(ix, c);
+        site1.apply(insert_op.clone());
+
+        site2.apply(insert_op.clone());
+        site2.apply(insert_op.clone());
+
+        let delete_op = site2.delete_index(ix).expect(&format!(
+            "ixxxx@{} was out of bounds@{}",
+            ix,
+            site2.len()
+        ));
+        // apply op a coupel of times
+        site2.apply(delete_op.clone());
+        site2.apply(delete_op.clone());
+        // apply op a coupel of times
+        site1.apply(delete_op.clone());
+        site1.apply(delete_op);
+
+        // now try applying insert op again (even though delete already appled)
+        site1.apply(insert_op.clone());
+    }
+
+    assert!(
+        site1.is_empty(),
+        "site1 was not empty: {}",
+        site1.iter().collect::<String>()
+    );
+    assert!(
+        site2.is_empty(),
+        "site2 was not empty: {}",
+        site2.iter().collect::<String>()
+    );
+
+    assert_eq!(
+        site2.iter().collect::<Vec<_>>(),
+        site1.iter().collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn test_insert_followed_by_deletes() {
     let mut rng = rand::thread_rng();
 
