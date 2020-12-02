@@ -275,12 +275,6 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     ///
     /// If the op's dot is less than current Vector Clock dot for that actor, the result is a no-op
     fn apply(&mut self, op: Self::Op) {
-        let op_dot = op.dot();
-
-        if op_dot <= &self.clock.dot(op_dot.actor.clone()) {
-            return;
-        }
-
         self.clock.apply(op.dot().clone());
         match op {
             Op::Insert { id, dot, val } => self.insert(id, dot, val),
