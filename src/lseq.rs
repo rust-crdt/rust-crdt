@@ -159,7 +159,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
         Op::Insert {
             id: ix_ident,
-            dot: self.clock.dot(self.actor()).inc(),
+            dot: self.clock.inc(self.actor()),
             val,
         }
     }
@@ -184,7 +184,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
         let op = Op::Delete {
             id: data.id,
             remote: data.dot,
-            dot: self.clock.dot(self.actor()).inc(),
+            dot: self.clock.inc(self.actor()),
         };
 
         Some(op)
