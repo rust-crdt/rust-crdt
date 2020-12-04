@@ -27,8 +27,8 @@ pub struct Orswot<M: Member, A: Actor> {
 /// they were produced to guarantee convergence.
 ///
 /// Op's are idempotent, that is, applying an Op twice will not have an effect
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Op<M: Member, A: Actor> {
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Op<M, A: Actor> {
     /// Add members to the set
     Add {
         /// witnessing dot
@@ -348,6 +348,15 @@ impl<A: Actor + Arbitrary, M: Member + Arbitrary> Arbitrary for Op<M, A> {
         }
 
         Box::new(shrunk_ops.into_iter())
+    }
+}
+
+impl<M: std::fmt::Debug, A: Actor + std::fmt::Debug> std::fmt::Debug for Op<M, A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Op::Add { dot, members } => write!(f, "Add({:?}, {:?})", dot, members),
+            Op::Rm { clock, members } => write!(f, "Rm({:?}, {:?})", clock, members),
+        }
     }
 }
 

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::quickcheck::{Arbitrary, Gen};
 
 /// Dot is a version marker for a single actor
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Dot<A> {
     /// The actor identifier
     pub actor: A,
@@ -58,6 +58,12 @@ impl<A: PartialOrd> PartialOrd for Dot<A> {
         } else {
             None
         }
+    }
+}
+
+impl<A: std::fmt::Debug> std::fmt::Debug for Dot<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}.{:?}", self.actor, self.counter)
     }
 }
 
