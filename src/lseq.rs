@@ -111,7 +111,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
     pub fn new(id: A) -> Self {
         LSeq {
             seq: Vec::new(),
-            gen: IdentGen::new(id.clone()),
+            gen: IdentGen::new(id),
             clock: VClock::new(),
         }
     }
@@ -120,7 +120,7 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
     pub fn new_with_args(id: A, base: u8, boundary: u64) -> Self {
         LSeq {
             seq: Vec::new(),
-            gen: IdentGen::new_with_args(id.clone(), base, boundary),
+            gen: IdentGen::new_with_args(id, base, boundary),
             clock: VClock::new(),
         }
     }
@@ -272,8 +272,6 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     ///
     /// If the operation is a delete and the identifier is **not** present in the LSEQ instance the
     /// result is a no-op
-    ///
-    /// If the op's dot is less than current Vector Clock dot for that actor, the result is a no-op
     fn apply(&mut self, op: Self::Op) {
         self.clock.apply(op.dot().clone());
         match op {
