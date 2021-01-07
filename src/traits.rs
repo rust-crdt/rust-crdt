@@ -43,9 +43,9 @@ pub trait CmRDT {
 }
 
 /// CRDT's are causal if they are built on top of vector clocks.
-pub trait Causal<A: Actor> {
-    /// Forget data that is strictly smaller than this clock
-    fn forget(&mut self, clock: &VClock<A>);
+pub trait ResetRemove<A: Actor> {
+    /// Remove data that is strictly smaller than this clock
+    fn reset_remove(&mut self, clock: &VClock<A>);
 }
 
 /// Funky variant of the `CvRDT` trait.

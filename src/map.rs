@@ -6,15 +6,15 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx, RmCtx};
-use crate::{Actor, Causal, CmRDT, CvRDT, Dot, VClock};
+use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// Val Trait alias to reduce redundancy in type decl.
-pub trait Val<A: Actor>: Clone + Causal<A> + CmRDT + CvRDT {}
+pub trait Val<A: Actor>: Clone + ResetRemove<A> + CmRDT + CvRDT {}
 
 impl<A, T> Val<A> for T
 where
     A: Actor,
-    T: Clone + Causal<A> + CmRDT + CvRDT,
+    T: Clone + ResetRemove<A> + CmRDT + CvRDT,
 {
 }
 
@@ -81,13 +81,13 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Default for Map<K, V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> Causal<A> for Map<K, V, A> {
-    fn forget(&mut self, clock: &VClock<A>) {
+impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
+    fn reset_remove(&mut self, clock: &VClock<A>) {
         self.entries = mem::replace(&mut self.entries, BTreeMap::new())
             .into_iter()
             .filter_map(|(key, mut entry)| {
-                entry.clock.forget(&clock);
-                entry.val.forget(&clock);
+                entry.clock.reset_remove(&clock);
+                entry.val.reset_remove(&clock);
                 if entry.clock.is_empty() {
                     None // remove this entry since its been forgotten
                 } else {
@@ -99,7 +99,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Causal<A> for Map<K, V, A> {
         self.deferred = mem::replace(&mut self.deferred, HashMap::new())
             .into_iter()
             .filter_map(|(mut rm_clock, key)| {
-                rm_clock.forget(&clock);
+                rm_clock.reset_remove(&clock);
                 if rm_clock.is_empty() {
                     None // this deferred remove has been forgotten
                 } else {
@@ -108,7 +108,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Causal<A> for Map<K, V, A> {
             })
             .collect();
 
-        self.clock.forget(&clock);
+        self.clock.reset_remove(&clock);
     }
 }
 
@@ -153,10 +153,10 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
                         // entry, so add it. But first, we have to remove any
                         // information that may have been known at some point
                         // by the other map about this key and was removed.
-                        entry.clock.forget(&other.clock);
+                        entry.clock.reset_remove(&other.clock);
                         let mut removed_information = other.clock.clone();
-                        removed_information.forget(&entry.clock);
-                        entry.val.forget(&removed_information);
+                        removed_information.reset_remove(&entry.clock);
+                        entry.val.reset_remove(&removed_information);
                         Some((key, entry))
                     }
                 } else {
@@ -183,8 +183,8 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
 
                     let mut information_that_was_deleted = entry.clock.clone();
                     information_that_was_deleted.merge(our_entry.clock.clone());
-                    information_that_was_deleted.forget(&common);
-                    our_entry.val.forget(&information_that_was_deleted);
+                    information_that_was_deleted.reset_remove(&common);
+                    our_entry.val.reset_remove(&information_that_was_deleted);
                     our_entry.clock = common;
                 }
             } else {
@@ -197,11 +197,11 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
                     // We have not seen this version of this entry, so we add it.
                     // but first, we have to remove the information on this entry
                     // that we have seen and deleted
-                    entry.clock.forget(&self.clock);
+                    entry.clock.reset_remove(&self.clock);
 
                     let mut information_we_deleted = self.clock.clone();
-                    information_we_deleted.forget(&entry.clock);
-                    entry.val.forget(&information_we_deleted);
+                    information_we_deleted.reset_remove(&entry.clock);
+                    entry.val.reset_remove(&information_we_deleted);
                     self.entries.insert(key, entry);
                 }
             }
@@ -317,7 +317,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
     fn apply_keyset_rm(&mut self, mut keyset: BTreeSet<K>, clock: VClock<A>) {
         for key in keyset.iter() {
             if let Some(entry) = self.entries.get_mut(&key) {
-                entry.clock.forget(&clock);
+                entry.clock.reset_remove(&clock);
                 if entry.clock.is_empty() {
                     // The entry clock says we have no info on this entry.
                     // So remove the entry
@@ -325,7 +325,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
                 } else {
                     // The entry clock is not empty so this means we still
                     // have some information on this entry, keep it.
-                    entry.val.forget(&clock);
+                    entry.val.reset_remove(&clock);
                 }
             }
         }

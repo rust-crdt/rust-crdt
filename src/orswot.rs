@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx, RmCtx};
 use crate::quickcheck::{Arbitrary, Gen};
-use crate::{Actor, Causal, CmRDT, CvRDT, Dot, VClock};
+use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// Trait bound alias for members in a set
 pub trait Member: Clone + Hash + Eq {}
@@ -95,7 +95,7 @@ impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
                         // entry, so add it. But first, we have to remove any
                         // information that may have been known at some point
                         // by the other map about this key and was removed.
-                        clock.forget(&other.clock);
+                        clock.reset_remove(&other.clock);
                         Some((entry, clock))
                     }
                 } else {
@@ -130,7 +130,7 @@ impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
                     // We have not seen this version of this entry, so we add it.
                     // but first, we have to remove the information on this entry
                     // that we have seen and deleted
-                    clock.forget(&self.clock);
+                    clock.reset_remove(&self.clock);
                     self.entries.insert(entry, clock);
                 }
             }
@@ -147,16 +147,16 @@ impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
     }
 }
 
-impl<M: Member, A: Actor> Causal<A> for Orswot<M, A> {
-    fn forget(&mut self, clock: &VClock<A>) {
-        self.clock.forget(&clock);
+impl<M: Member, A: Actor> ResetRemove<A> for Orswot<M, A> {
+    fn reset_remove(&mut self, clock: &VClock<A>) {
+        self.clock.reset_remove(&clock);
 
         self.entries = self
             .entries
             .clone()
             .into_iter()
             .filter_map(|(val, mut val_clock)| {
-                val_clock.forget(&clock);
+                val_clock.reset_remove(&clock);
                 if val_clock.is_empty() {
                     None
                 } else {
@@ -170,7 +170,7 @@ impl<M: Member, A: Actor> Causal<A> for Orswot<M, A> {
             .clone()
             .into_iter()
             .filter_map(|(mut vclock, deferred)| {
-                vclock.forget(&clock);
+                vclock.reset_remove(&clock);
                 if vclock.is_empty() {
                     None
                 } else {
@@ -232,7 +232,7 @@ impl<M: Member, A: Actor> Orswot<M, A> {
     fn apply_rm(&mut self, members: HashSet<M>, clock: VClock<A>) {
         for member in members.iter() {
             if let Some(member_clock) = self.entries.get_mut(&member) {
-                member_clock.forget(&clock);
+                member_clock.reset_remove(&clock);
                 if member_clock.is_empty() {
                     self.entries.remove(&member);
                 }

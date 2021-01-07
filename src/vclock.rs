@@ -21,7 +21,7 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
-use crate::{Actor, Causal, CmRDT, CvRDT, Dot};
+use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove};
 
 /// A `VClock` is a standard vector clock.
 /// It contains a set of "actors" and associated counters.
@@ -77,10 +77,10 @@ impl<A: Actor + Display> Display for VClock<A> {
     }
 }
 
-impl<A: Actor> Causal<A> for VClock<A> {
+impl<A: Actor> ResetRemove<A> for VClock<A> {
     /// Forget any actors that have smaller counts than the
     /// count in the given vclock
-    fn forget(&mut self, other: &Self) {
+    fn reset_remove(&mut self, other: &Self) {
         for Dot { actor, counter } in other.iter() {
             if counter >= self.get(&actor) {
                 self.dots.remove(&actor);
@@ -132,7 +132,7 @@ impl<A: Actor> VClock<A> {
     /// forgotten
     pub fn clone_without(&self, base_clock: &Self) -> Self {
         let mut cloned = self.clone();
-        cloned.forget(&base_clock);
+        cloned.reset_remove(&base_clock);
         cloned
     }
 

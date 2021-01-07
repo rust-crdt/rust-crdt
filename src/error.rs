@@ -1,7 +1,7 @@
 use std::{error, fmt, result};
 
 /// CRDT Result alias to reduce redundency in function return types
-pub(crate) type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 /// Possible CRDT error codes
 #[derive(Debug, PartialEq)]

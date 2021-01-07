@@ -208,18 +208,18 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
-    fn prop_forget(r_ops: Vec<(u8, u8)>) -> bool {
+    fn prop_reset_remove(r_ops: Vec<(u8, u8)>) -> bool {
         let mut r = build_test_reg(r_ops).reg;
         let r_snapshot = r.clone();
 
         // truncating with the empty clock should be a nop
-        r.forget(&VClock::new());
+        r.reset_remove(&VClock::new());
         assert_eq!(r, r_snapshot);
 
         // truncating with the merge of all val clocks should give us
         // an empty register
         let clock = r.read().add_clock;
-        r.forget(&clock);
+        r.reset_remove(&clock);
         assert_eq!(r, MVReg::new());
         true
     }

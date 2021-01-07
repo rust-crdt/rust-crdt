@@ -1,7 +1,7 @@
 use num_bigint::BigInt;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::{Causal, CmRDT, CvRDT};
+use crate::traits::{CmRDT, CvRDT, ResetRemove};
 use crate::{Actor, Dot, GCounter, VClock};
 
 /// `PNCounter` allows the counter to be both incremented and decremented
@@ -73,10 +73,10 @@ impl<A: Actor> CvRDT for PNCounter<A> {
     }
 }
 
-impl<A: Actor> Causal<A> for PNCounter<A> {
-    fn forget(&mut self, clock: &VClock<A>) {
-        self.p.forget(&clock);
-        self.n.forget(&clock);
+impl<A: Actor> ResetRemove<A> for PNCounter<A> {
+    fn reset_remove(&mut self, clock: &VClock<A>) {
+        self.p.reset_remove(&clock);
+        self.n.reset_remove(&clock);
     }
 }
 

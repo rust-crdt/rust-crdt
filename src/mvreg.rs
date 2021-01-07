@@ -5,7 +5,7 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx};
-use crate::{Actor, Causal, CmRDT, CvRDT, VClock};
+use crate::{Actor, CmRDT, CvRDT, ResetRemove, VClock};
 
 /// MVReg (Multi-Value Register)
 /// On concurrent writes, we will keep all values for which
@@ -84,14 +84,14 @@ impl<V: PartialEq, A: Actor> PartialEq for MVReg<V, A> {
 
 impl<V: Eq, A: Actor> Eq for MVReg<V, A> {}
 
-impl<V: Clone, A: Actor> Causal<A> for MVReg<V, A> {
-    fn forget(&mut self, clock: &VClock<A>) {
+impl<V: Clone, A: Actor> ResetRemove<A> for MVReg<V, A> {
+    fn reset_remove(&mut self, clock: &VClock<A>) {
         self.vals = self
             .vals
             .clone()
             .into_iter()
             .filter_map(|(mut val_clock, val)| {
-                val_clock.forget(&clock);
+                val_clock.reset_remove(&clock);
                 if val_clock.is_empty() {
                     None // remove this value from the register
                 } else {

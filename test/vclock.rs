@@ -50,21 +50,21 @@ quickcheck! {
         a_glb == b_glb
     }
 
-    fn prop_forget_with_empty_is_nop(clock: VClock<u8>) -> bool {
+    fn prop_reset_remove_with_empty_is_nop(clock: VClock<u8>) -> bool {
         let mut subbed  = clock.clone();
-        subbed.forget(&VClock::new());
+        subbed.reset_remove(&VClock::new());
         subbed == clock
     }
 
-    fn prop_forget_self_is_empty(clock: VClock<u8>) -> bool {
+    fn prop_reset_remove_self_is_empty(clock: VClock<u8>) -> bool {
         let mut subbed  = clock.clone();
-        subbed.forget(&clock);
+        subbed.reset_remove(&clock);
         subbed == VClock::new()
     }
 
-    fn prop_forget_is_empty_implies_equal_or_greator(a: VClock<u8>, b: VClock<u8>) -> bool {
+    fn prop_reset_remove_is_empty_implies_equal_or_greator(a: VClock<u8>, b: VClock<u8>) -> bool {
         let mut a = a;
-        a.forget(&b);
+        a.reset_remove(&b);
 
         if a.is_empty() {
             match a.partial_cmp(&b) {
@@ -81,7 +81,7 @@ quickcheck! {
 }
 
 #[test]
-fn test_forget() {
+fn test_reset_remove() {
     let mut a: VClock<u8> = vec![Dot::new(1, 4), Dot::new(2, 3), Dot::new(5, 9)]
         .into_iter()
         .collect();
@@ -90,7 +90,7 @@ fn test_forget() {
         .collect();
     let expected: VClock<u8> = vec![Dot::new(5, 9)].into_iter().collect();
 
-    a.forget(&b);
+    a.reset_remove(&b);
     assert_eq!(a, expected);
 }
 

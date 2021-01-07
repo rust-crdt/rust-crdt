@@ -1,7 +1,7 @@
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
-use crate::{Actor, Causal, CmRDT, CvRDT, Dot, VClock};
+use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// `GCounter` is a grow-only witnessed counter.
 ///
@@ -46,9 +46,9 @@ impl<A: Actor> CvRDT for GCounter<A> {
     }
 }
 
-impl<A: Actor> Causal<A> for GCounter<A> {
-    fn forget(&mut self, clock: &VClock<A>) {
-        self.inner.forget(&clock);
+impl<A: Actor> ResetRemove<A> for GCounter<A> {
+    fn reset_remove(&mut self, clock: &VClock<A>) {
+        self.inner.reset_remove(&clock);
     }
 }
 

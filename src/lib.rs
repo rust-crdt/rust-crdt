@@ -14,7 +14,7 @@ mod error;
 pub use crate::error::{Error, Result};
 
 mod traits;
-pub use crate::traits::{Actor, Causal, CmRDT, CvRDT, FunkyCmRDT, FunkyCvRDT};
+pub use crate::traits::{Actor, CmRDT, CvRDT, FunkyCmRDT, FunkyCvRDT, ResetRemove};
 
 /// This module contains a Last-Write-Wins Register.
 pub mod lwwreg;
