@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, FunkyCmRDT, FunkyCvRDT, Result};
+use crate::{error::Result, Error, FunkyCmRDT, FunkyCvRDT};
 
 /// `LWWReg` is a simple CRDT that contains an arbitrary value
 /// along with an `Ord` that tracks causality. It is the responsibility

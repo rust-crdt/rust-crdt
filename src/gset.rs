@@ -22,6 +22,12 @@ impl<T: Ord> From<GSet<T>> for BTreeSet<T> {
 }
 
 impl<T: Ord + Clone> CvRDT for GSet<T> {
+    type Validation = ();
+
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
+
     /// Merges another `GSet` into this one.
     ///
     /// # Examples
@@ -42,6 +48,11 @@ impl<T: Ord + Clone> CvRDT for GSet<T> {
 
 impl<T: Ord> CmRDT for GSet<T> {
     type Op = T;
+    type Validation = ();
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
 
     fn apply(&mut self, op: Self::Op) {
         self.insert(op);

@@ -114,6 +114,11 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
 
 impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
     type Op = Op<K, V, A>;
+    type Validation = ();
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
 
     fn apply(&mut self, op: Self::Op) {
         match op {
@@ -137,6 +142,12 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
 }
 
 impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
+    type Validation = ();
+
+    fn validate_merge(&self, merge: &Self) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
+
     fn merge(&mut self, other: Self) {
         self.entries = mem::replace(&mut self.entries, BTreeMap::new())
             .into_iter()

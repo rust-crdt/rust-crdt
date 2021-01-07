@@ -9,6 +9,17 @@ impl<A: Ord + Clone + Hash> Actor for A {}
 
 /// State based CRDT's replicate by transmitting the entire CRDT state.
 pub trait CvRDT {
+    type Validation;
+
+    /// Some CRDT's have stricter requirements on how they must be used.
+    /// To avoid violating these requirements, CRDT's provide an interface
+    /// to optionally validate merge compatibility before attempting to merge.
+    ///
+    /// An `Ok(())` response signals that the merge is safe to proceed.
+    /// Otherwise a structured error is returned to help you determine what
+    /// is wrong with the merge.
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation>;
+
     /// Merge the given CRDT into the current CRDT.
     fn merge(&mut self, other: Self);
 }
@@ -37,6 +48,16 @@ pub trait CmRDT {
     ///
     /// Op's must be idempotent, meaning any Op may be applied more than once.
     type Op;
+    type Validation;
+
+    /// Some CRDT's have stricter requirements on how they must be used.
+    /// To avoid violating these requirements, CRDT's provide an interface
+    /// to optionally validate op's before they are applied.
+    ///
+    /// An `Ok(())` response signals that this operation is safe to apply.
+    /// Otherwise a structured error is returned to help you determine what
+    /// is wrong with the operation
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation>;
 
     /// Apply an Op to the CRDT
     fn apply(&mut self, op: Self::Op);
@@ -55,7 +76,7 @@ pub trait ResetRemove<A: Actor> {
 /// E.g. the unicity of timestamp assumption in LWWReg
 pub trait FunkyCvRDT {
     /// Merge the given CRDT into the current CRDT.
-    fn merge(&mut self, other: Self) -> crate::Result<()>;
+    fn merge(&mut self, other: Self) -> crate::error::Result<()>;
 }
 
 /// Funky variant of the `CmRDT` trait.
@@ -68,5 +89,5 @@ pub trait FunkyCmRDT {
     type Op;
 
     /// Apply an Op to the CRDT
-    fn apply(&mut self, op: Self::Op) -> crate::Result<()>;
+    fn apply(&mut self, op: Self::Op) -> crate::error::Result<()>;
 }

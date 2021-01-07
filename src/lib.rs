@@ -8,10 +8,10 @@
 //!
 //! [crdt]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
 #![crate_type = "lib"]
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 mod error;
-pub use crate::error::{Error, Result};
+pub use crate::error::Error;
 
 mod traits;
 pub use crate::traits::{Actor, CmRDT, CvRDT, FunkyCmRDT, FunkyCvRDT, ResetRemove};
@@ -54,8 +54,8 @@ pub mod vvwe;
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
-    dot::Dot, gcounter::GCounter, gset::GSet, lwwreg::LWWReg, map::Map, mvreg::MVReg,
-    orswot::Orswot, pncounter::PNCounter, vclock::VClock,
+    dot::Dot, dot::DotRange, gcounter::GCounter, gset::GSet, lwwreg::LWWReg, map::Map,
+    mvreg::MVReg, orswot::Orswot, pncounter::PNCounter, vclock::VClock,
 };
 
 /// A re-export of the quickcheck crate for use in property based testing of user code

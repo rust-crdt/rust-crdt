@@ -109,6 +109,12 @@ impl<V, A: Actor> Default for MVReg<V, A> {
 }
 
 impl<V, A: Actor> CvRDT for MVReg<V, A> {
+    type Validation = ();
+
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
+
     fn merge(&mut self, other: Self) {
         self.vals = mem::replace(&mut self.vals, Vec::new())
             .into_iter()
@@ -128,6 +134,11 @@ impl<V, A: Actor> CvRDT for MVReg<V, A> {
 
 impl<V, A: Actor> CmRDT for MVReg<V, A> {
     type Op = Op<V, A>;
+    type Validation = ();
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
 
     fn apply(&mut self, op: Self::Op) {
         match op {

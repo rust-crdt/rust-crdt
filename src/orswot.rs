@@ -53,6 +53,14 @@ impl<M: Member, A: Actor> Default for Orswot<M, A> {
 
 impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
     type Op = Op<M, A>;
+    type Validation = <VClock<A> as CmRDT>::Validation;
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        match op {
+            Op::Add { dot, members } => self.clock.validate_op(dot),
+            Op::Rm { clock, members } => Ok(()),
+        }
+    }
 
     fn apply(&mut self, op: Self::Op) {
         match op {
@@ -78,6 +86,12 @@ impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
 }
 
 impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
+    type Validation = ();
+
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
+    }
+
     /// Merge combines another `Orswot` with this one.
     fn merge(&mut self, other: Self) {
         self.entries = mem::replace(&mut self.entries, HashMap::new())

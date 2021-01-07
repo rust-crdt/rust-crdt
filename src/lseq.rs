@@ -265,6 +265,12 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
 impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     type Op = Op<T, A>;
+    type Validation = ();
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
+
     /// Apply an operation to an LSeq instance.
     ///
     /// If the operation is an insert and the identifier is **already** present in the LSEQ instance

@@ -21,7 +21,7 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
-use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove};
+use crate::{Actor, CmRDT, CvRDT, Dot, DotRange, ResetRemove};
 
 /// A `VClock` is a standard vector clock.
 /// It contains a set of "actors" and associated counters.
@@ -33,7 +33,7 @@ use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove};
 /// or if different replicas are "concurrent" (were mutated in
 /// isolation, and need to be resolved externally).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct VClock<A: Actor> {
+pub struct VClock<A: Ord> {
     /// dots is the mapping from actors to their associated counters
     pub dots: BTreeMap<A, u64>,
 }
@@ -91,6 +91,19 @@ impl<A: Actor> ResetRemove<A> for VClock<A> {
 
 impl<A: Actor> CmRDT for VClock<A> {
     type Op = Dot<A>;
+    type Validation = DotRange<A>;
+
+    fn validate_op(&self, dot: &Self::Op) -> Result<(), Self::Validation> {
+        let next_dot = self.inc(dot.actor.clone());
+        if dot > &next_dot {
+            Err(DotRange {
+                actor: dot.actor.clone(),
+                counter_range: next_dot.counter..dot.counter,
+            })
+        } else {
+            Ok(())
+        }
+    }
 
     /// Monotonically adds the given actor version to
     /// this VClock.
@@ -113,6 +126,12 @@ impl<A: Actor> CmRDT for VClock<A> {
 }
 
 impl<A: Actor> CvRDT for VClock<A> {
+    type Validation = ();
+
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        unimplemented!();
+    }
+
     fn merge(&mut self, other: Self) {
         for dot in other.into_iter() {
             self.apply_dot(dot);

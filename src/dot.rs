@@ -5,6 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct DotRange<A> {
+    pub actor: A,
+    pub counter_range: core::ops::Range<u64>,
+}
+
 /// Dot is a version marker for a single actor
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Dot<A> {
