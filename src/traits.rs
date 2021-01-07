@@ -54,11 +54,8 @@ pub trait Causal<A: Actor> {
 /// typesystem so we rely on runtime error checking.
 /// E.g. the unicity of timestamp assumption in LWWReg
 pub trait FunkyCvRDT {
-    /// User chosen error type
-    type Error;
-
     /// Merge the given CRDT into the current CRDT.
-    fn merge(&mut self, other: Self) -> Result<(), Self::Error>;
+    fn merge(&mut self, other: Self) -> crate::Result<()>;
 }
 
 /// Funky variant of the `CmRDT` trait.
@@ -67,12 +64,9 @@ pub trait FunkyCvRDT {
 /// typesystem so we rely on runtime error checking.
 /// E.g. the unicity property of timestamp assumption in LWWReg
 pub trait FunkyCmRDT {
-    /// User chosen error type
-    type Error;
-
     /// Same Op laws from non-funky CmRDT above
     type Op;
 
     /// Apply an Op to the CRDT
-    fn apply(&mut self, op: Self::Op) -> Result<(), Self::Error>;
+    fn apply(&mut self, op: Self::Op) -> crate::Result<()>;
 }

@@ -11,7 +11,7 @@
 #![deny(missing_docs)]
 
 mod error;
-pub use crate::error::Error;
+pub use crate::error::{Error, Result};
 
 mod traits;
 pub use crate::traits::{Actor, Causal, CmRDT, CvRDT, FunkyCmRDT, FunkyCvRDT};

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result};
-use crate::{FunkyCmRDT, FunkyCvRDT};
+use crate::{Error, FunkyCmRDT, FunkyCvRDT, Result};
 
 /// `LWWReg` is a simple CRDT that contains an arbitrary value
 /// along with an `Ord` that tracks causality. It is the responsibility
@@ -28,8 +27,6 @@ impl<V: Default, M: Ord + Default> Default for LWWReg<V, M> {
 }
 
 impl<V: PartialEq, M: Ord> FunkyCvRDT for LWWReg<V, M> {
-    type Error = Error;
-
     /// Combines two `LWWReg` instances according to the marker that
     /// tracks causality. Returns an error if the marker is identical but the
     /// contained element is different.
@@ -46,8 +43,6 @@ impl<V: PartialEq, M: Ord> FunkyCvRDT for LWWReg<V, M> {
 }
 
 impl<V: PartialEq, M: Ord> FunkyCmRDT for LWWReg<V, M> {
-    type Error = Error;
-
     // LWWReg's are small enough that we can replicate
     // the entire state as an Op
     type Op = Self;
