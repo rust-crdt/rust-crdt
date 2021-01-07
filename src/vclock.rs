@@ -216,7 +216,7 @@ impl<A: Actor> VClock<A> {
     /// Reduces this VClock to the greatest-lower-bound of the given
     /// VClock and itsef, as an example see the following code.
     /// ``` rust
-    /// use crdts::{VClock, Dot, Causal, CmRDT};
+    /// use crdts::{VClock, Dot, ResetRemove, CmRDT};
     /// let mut c = VClock::new();
     /// c.apply(Dot::new(23, 6));
     /// c.apply(Dot::new(89, 14));
