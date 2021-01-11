@@ -112,12 +112,31 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Validation<A, V: CmRDT> {
+    SourceOrder(crate::DotRange<A>),
+    Value(V::Validation),
+}
+
 impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
     type Op = Op<K, V, A>;
-    type Validation = ();
+    type Validation = Validation<A, V>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        unimplemented!();
+        match op {
+            Op::Rm { clock, keyset } => Ok(()),
+            Op::Up { dot, key, op } => {
+                self.clock
+                    .validate_op(&dot)
+                    .map_err(Validation::SourceOrder)?;
+                let entry = self.entries.get(&key).cloned().unwrap_or_default();
+                entry
+                    .clock
+                    .validate_op(&dot)
+                    .map_err(Validation::SourceOrder)?;
+                entry.val.validate_op(&op).map_err(Validation::Value)
+            }
+        }
     }
 
     fn apply(&mut self, op: Self::Op) {
@@ -145,7 +164,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
     type Validation = ();
 
     fn validate_merge(&self, merge: &Self) -> Result<(), Self::Validation> {
-        unimplemented!();
+        Ok(())
     }
 
     fn merge(&mut self, other: Self) {

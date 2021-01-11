@@ -137,7 +137,7 @@ impl<V, A: Actor> CmRDT for MVReg<V, A> {
     type Validation = ();
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        unimplemented!();
+        Ok(())
     }
 
     fn apply(&mut self, op: Self::Op) {

@@ -1,4 +1,4 @@
-use crdts::{map, mvreg, CmRDT, CvRDT, Dot, MVReg, Map, ResetRemove, VClock};
+use crdts::{map, mvreg, CmRDT, CvRDT, Dot, DotRange, MVReg, Map, ResetRemove, VClock};
 use quickcheck::TestResult;
 
 type TActor = u8;
@@ -472,6 +472,60 @@ fn test_op_exchange_same_as_merge_quickcheck1() {
     assert_eq!(m2, m2_merge);
     assert_eq!(m1, m2_merge);
     assert_eq!(m2, m1_merge);
+}
+
+#[test]
+fn test_op_invalid_if_skipping_dot() {
+    let map: TMap = Map::new();
+
+    let op = map::Op::Up {
+        dot: Dot::new(38, 4),
+        key: 216,
+        op: map::Op::Up {
+            dot: Dot::new(38, 1),
+            key: 37,
+            op: mvreg::Op::Put {
+                clock: Dot::new(38, 1).into(),
+                val: 94,
+            },
+        },
+    };
+
+    assert_eq!(
+        map.validate_op(&op),
+        Err(map::Validation::SourceOrder(DotRange {
+            actor: 38,
+            counter_range: 1..4
+        }))
+    );
+}
+
+#[test]
+fn test_nested_op_invalid_if_skipping_dot() {
+    let map: TMap = Map::new();
+
+    let op = map::Op::Up {
+        dot: Dot::new(38, 1),
+        key: 216,
+        op: map::Op::Up {
+            dot: Dot::new(38, 2),
+            key: 37,
+            op: mvreg::Op::Put {
+                clock: Dot::new(38, 1).into(),
+                val: 94,
+            },
+        },
+    };
+
+    assert_eq!(
+        map.validate_op(&op),
+        Err(map::Validation::Value(map::Validation::SourceOrder(
+            DotRange {
+                actor: 38,
+                counter_range: 1..2
+            }
+        )))
+    );
 }
 
 #[test]
