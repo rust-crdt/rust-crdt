@@ -265,10 +265,16 @@ impl<T: Clone, A: Actor> LSeq<T, A> {
 
 impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     type Op = Op<T, A>;
-    type Validation = ();
+    type Validation = crate::DotRange<A>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        unimplemented!();
+        match op {
+	    Op::Insert { id, dot, val } => self.clock.validate_op(dot),
+	    Op::Delete { id, remote, dot } => {
+		self.clock.validate_op(remote)?;
+		self.clock.validate_op(dot)
+	    }
+	}
     }
 
     /// Apply an operation to an LSeq instance.
@@ -279,7 +285,13 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     /// If the operation is a delete and the identifier is **not** present in the LSEQ instance the
     /// result is a no-op
     fn apply(&mut self, op: Self::Op) {
-        self.clock.apply(op.dot().clone());
+	let op_dot = op.dot().clone();
+
+	if op_dot <= self.clock.dot(op_dot.actor.clone()) {
+	    return;
+	}
+
+        self.clock.apply(op_dot);
         match op {
             Op::Insert { id, dot, val } => self.insert(id, dot, val),
             Op::Delete { id, .. } => self.delete(id),

@@ -84,9 +84,17 @@ fn test_out_of_order_inserts() {
     let op3 = site1.insert_index(1, 'b');
     site1.apply(op3.clone());
 
-    site2.apply(op3);
-    site2.apply(op1);
-    site2.apply(op2);
+    let mut ops = vec![op1, op2, op3];
+    let mut iterations = 0;
+    while let Some(op) = ops.pop() {
+	assert!(iterations < (3 * (3 + 1)) / 2);
+	iterations += 1;
+	if site2.validate_op(&op).is_ok() {
+	    site2.apply(op)
+	} else {
+	    ops.insert(0, op);
+	}
+    }
 
     let site1_items = site1.iter().collect::<String>();
     assert_eq!(site1_items, "abc");
@@ -138,8 +146,6 @@ fn test_get() {
 }
 
 #[test]
-#[ignore]
-// TODO establish way of handling idempotency
 fn test_reapply_lseq_ops() {
     let mut rng = rand::thread_rng();
 
