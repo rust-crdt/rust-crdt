@@ -57,10 +57,13 @@ impl<A: Actor> Default for PNCounter<A> {
 
 impl<A: Actor> CmRDT for PNCounter<A> {
     type Op = Op<A>;
-    type Validation = ();
+    type Validation = <GCounter<A> as CmRDT>::Validation;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        unimplemented!();
+	match op {
+            Op { dot, dir: Dir::Pos } => self.p.validate_op(dot),
+            Op { dot, dir: Dir::Neg } => self.n.validate_op(dot),
+        }
     }
 
     fn apply(&mut self, op: Self::Op) {
@@ -72,10 +75,11 @@ impl<A: Actor> CmRDT for PNCounter<A> {
 }
 
 impl<A: Actor> CvRDT for PNCounter<A> {
-    type Validation = ();
+    type Validation = <GCounter<A> as CvRDT>::Validation;
 
     fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        unimplemented!();
+	self.p.validate_merge(&other.p)?;
+	self.n.validate_merge(&other.n)
     }
 
     fn merge(&mut self, other: Self) {
