@@ -111,8 +111,8 @@ impl<V, A: Actor> Default for MVReg<V, A> {
 impl<V, A: Actor> CvRDT for MVReg<V, A> {
     type Validation = ();
 
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        unimplemented!();
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     fn merge(&mut self, other: Self) {
@@ -136,7 +136,7 @@ impl<V, A: Actor> CmRDT for MVReg<V, A> {
     type Op = Op<V, A>;
     type Validation = ();
 
-    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+    fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
         Ok(())
     }
 
