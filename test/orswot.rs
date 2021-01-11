@@ -25,30 +25,30 @@ quickcheck! {
                 let expected_dot = orswot.clock().inc(dot.actor);
                 if dot < expected_dot {
                     assert_eq!(orswot.validate_op(&op), Ok(()));
-            let orswot_clone = orswot.clone();
+                    let orswot_clone = orswot.clone();
                     orswot.apply(op);
-            assert_eq!(orswot, orswot_clone);
-        } else if dot == expected_dot {
+                    assert_eq!(orswot, orswot_clone);
+                } else if dot == expected_dot {
                     assert_eq!(orswot.validate_op(&op), Ok(()));
                     orswot.apply(op);
                     for member in members {
-            let removed = ops.iter().find(|op| {
-                if let Op::Rm { clock, members } = op {
-                members.contains(&member) && clock.dot(dot.actor.clone()) == dot
-                } else {
-                false
-                }
-            }).is_some();
+                        let removed = ops.iter().find(|op| {
+                            if let Op::Rm { clock, members } = op {
+                                members.contains(&member) && clock.dot(dot.actor.clone()) == dot
+                            } else {
+                                false
+                            }
+                        }).is_some();
 
                         assert!(removed || orswot.contains(&member).val);
                     }
                 } else {
                     assert_eq!(
-                        orswot.validate_op(&op),
-                        Err(DotRange {
-                actor: dot.actor.clone(),
-                counter_range: expected_dot.counter..dot.counter,
-            })
+                       orswot.validate_op(&op),
+                       Err(DotRange {
+                           actor: dot.actor.clone(),
+                           counter_range: expected_dot.counter..dot.counter,
+                       })
                     );
                 }
             }
@@ -59,84 +59,64 @@ quickcheck! {
     }
 
     fn prop_validate_merge(ops_1: Vec<Op<Member, Actor>>, ops_2: Vec<Op<Member, Actor>>) -> bool {
-    let mut orswot_1 = Orswot::new();
-    let mut orswot_2 = Orswot::new();
+        let mut orswot_1 = Orswot::new();
+        let mut orswot_2 = Orswot::new();
 
-    for op in ops_1.clone() {
-        if orswot_1.validate_op(&op).is_ok() {
-        orswot_1.apply(op)
-        }
-    }
-
-    for op in ops_2.clone() {
-        if orswot_2.validate_op(&op).is_ok() {
-        orswot_2.apply(op)
-        }
-    }
-
-    if orswot_1.validate_merge(&orswot_2).is_ok() {
-        assert_eq!(orswot_2.validate_merge(&orswot_1), Ok(()));
-    }
-
-    if orswot_2.validate_merge(&orswot_1).is_ok() {
-        assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
-    }
-
-    let mut merged = orswot_1.clone();
-    merged.merge(orswot_2.clone());
-    let merged_members = merged.read().val;
-
-    for member in orswot_1.read().val {
-        if !merged_members.contains(&member) {
-        assert_ne!(
-            ops_2.iter().find(|op| {
-                if let Op::Rm { members, .. } = op {
-                members.contains(&member)
-                } else {
-                    false
-                }
-            }),
-            None
-        );
-        }
-    }
-
-    for member in orswot_2.read().val {
-        if !merged_members.contains(&member) {
-        assert_ne!(
-            ops_1.iter().find(|op| {
-                if let Op::Rm { members, .. } = op {
-                members.contains(&member)
-                } else {
-                    false
-                }
-            }),
-            None
-        );
-        }
-    }
-
-    for member in merged_members {
-        assert!(
-        ops_1.iter().find(|op| {
-            if let Op::Add { members, .. } = op {
-            members.contains(&member)
-            } else {
-                false
+        for op in ops_1.clone() {
+            if orswot_1.validate_op(&op).is_ok() {
+               orswot_1.apply(op)
             }
-        }).is_some()
-            ||
-        ops_2.iter().find(|op| {
-            if let Op::Add { members, .. } = op {
-            members.contains(&member)
-            } else {
-                false
-            }
-        }).is_some()
-        );
-    }
+        }
 
-    true
+        for op in ops_2.clone() {
+            if orswot_2.validate_op(&op).is_ok() {
+                orswot_2.apply(op)
+            }
+        }
+
+        if orswot_1.validate_merge(&orswot_2).is_ok() {
+            assert_eq!(orswot_2.validate_merge(&orswot_1), Ok(()));
+        }
+
+        if orswot_2.validate_merge(&orswot_1).is_ok() {
+            assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
+        }
+
+        let mut merged = orswot_1.clone();
+        merged.merge(orswot_2.clone());
+        let merged_members = merged.read().val;
+
+        for member in orswot_1.read().val {
+            if !merged_members.contains(&member) {
+                assert_ne!(
+                    ops_2.iter().find(|op| {
+                        if let Op::Rm { members, .. } = op {
+                            members.contains(&member)
+                        } else {
+                            false
+                        }
+                    }),
+                    None
+                );
+            }
+        }
+
+        for member in orswot_2.read().val {
+            if !merged_members.contains(&member) {
+            assert_ne!(
+                ops_1.iter().find(|op| {
+                    if let Op::Rm { members, .. } = op {
+                        members.contains(&member)
+                    } else {
+                        false
+                    }
+                }),
+                None
+            );
+            }
+        }
+
+        true
     }
 
     fn prop_merge_converges(ops: Vec<Op<Member, Actor>>) -> bool {
