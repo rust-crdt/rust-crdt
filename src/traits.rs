@@ -68,26 +68,3 @@ pub trait ResetRemove<A: Actor> {
     /// Remove data that is strictly smaller than this clock
     fn reset_remove(&mut self, clock: &VClock<A>);
 }
-
-/// Funky variant of the `CvRDT` trait.
-///
-/// This trait is for CvRDT's whose state space can't be easily encoded in rusts
-/// typesystem so we rely on runtime error checking.
-/// E.g. the unicity of timestamp assumption in LWWReg
-pub trait FunkyCvRDT {
-    /// Merge the given CRDT into the current CRDT.
-    fn merge(&mut self, other: Self) -> crate::error::Result<()>;
-}
-
-/// Funky variant of the `CmRDT` trait.
-///
-/// This trait is for CvRDT's whose state space can't be easily encoded in rusts
-/// typesystem so we rely on runtime error checking.
-/// E.g. the unicity property of timestamp assumption in LWWReg
-pub trait FunkyCmRDT {
-    /// Same Op laws from non-funky CmRDT above
-    type Op;
-
-    /// Apply an Op to the CRDT
-    fn apply(&mut self, op: Self::Op) -> crate::error::Result<()>;
-}

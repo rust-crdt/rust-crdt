@@ -1,6 +1,8 @@
+use std::{error, fmt};
+
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Result, Error, FunkyCmRDT, FunkyCvRDT};
+use crate::{CmRDT, CvRDT};
 
 /// `LWWReg` is a simple CRDT that contains an arbitrary value
 /// along with an `Ord` that tracks causality. It is the responsibility
@@ -26,69 +28,103 @@ impl<V: Default, M: Ord + Default> Default for LWWReg<V, M> {
     }
 }
 
-impl<V: PartialEq, M: Ord> FunkyCvRDT for LWWReg<V, M> {
-    /// Combines two `LWWReg` instances according to the marker that
-    /// tracks causality. Returns an error if the marker is identical but the
+#[derive(Debug, PartialEq)]
+pub enum Validation {
+    /// A conflicting change to a CRDT is witnessed by a dot that already exists.
+    ConflictingMarker,
+}
+
+impl error::Error for Validation {
+    fn description(&self) -> &str {
+        match self {
+            Validation::ConflictingMarker => {
+                "A marker must be used exactly once, re-using the same marker breaks associativity"
+            }
+        }
+    }
+}
+
+impl fmt::Display for Validation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl<V: PartialEq, M: Ord> CvRDT for LWWReg<V, M> {
+    type Validation = Validation;
+
+    /// Validates whether a merge is safe to perfom
+    ///
+    /// Returns an error if the marker is identical but the
     /// contained element is different.
     /// ```
-    /// use crdts::{LWWReg, FunkyCvRDT};
+    /// use crdts::{lwwreg, LWWReg, CvRDT};
     /// let mut l1 = LWWReg { val: 1, marker: 2 };
     /// let l2 = LWWReg { val: 3, marker: 2 };
     /// // errors!
-    /// assert!(l1.merge(l2).is_err());
+    /// assert_eq!(l1.validate_merge(&l2), Err(lwwreg::Validation::ConflictingMarker));
     /// ```
-    fn merge(&mut self, LWWReg { val, marker }: Self) -> Result<()> {
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        self.validate_update(&other.val, &other.marker)
+    }
+
+    /// Combines two `LWWReg` instances according to the marker that
+    /// tracks causality.
+    fn merge(&mut self, LWWReg { val, marker }: Self) {
         self.update(val, marker)
     }
 }
 
-impl<V: PartialEq, M: Ord> FunkyCmRDT for LWWReg<V, M> {
+impl<V: PartialEq, M: Ord> CmRDT for LWWReg<V, M> {
     // LWWReg's are small enough that we can replicate
     // the entire state as an Op
     type Op = Self;
+    type Validation = Validation;
 
-    fn apply(&mut self, op: Self::Op) -> Result<()> {
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        self.validate_update(&op.val, &op.marker)
+    }
+
+    fn apply(&mut self, op: Self::Op) {
         self.merge(op)
     }
 }
 
 impl<V: PartialEq, M: Ord> LWWReg<V, M> {
     /// Updates value witnessed by the given marker.
-    /// An Err is returned if the given marker is exactly
-    /// equal to the current marker
     ///
     /// ```
     /// use crdts::LWWReg;
     /// let mut reg = LWWReg { val: 1, marker: 2 };
     ///
     /// // updating with a smaller marker is a no-op
-    /// assert!(reg.update(2, 1).is_ok());
+    /// reg.update(2, 1);
     /// assert_eq!(reg.val, 1);
     ///
-    /// // updating with existing marker fails
-    /// assert!(reg.update(2, 2).is_err());
-    /// assert_eq!(reg, LWWReg { val: 1, marker: 2 });
-    ///
-    /// // updating with same val and marker succeeds
-    /// assert!(reg.update(1, 2).is_ok());
-    /// assert_eq!(reg, LWWReg { val: 1, marker: 2 });
-    ///
-    /// // updating with descendent marker succeeds
-    /// assert!(reg.update(2, 3).is_ok());
+    /// // updating with larger marker succeeds
+    /// reg.update(2, 3);
     /// assert_eq!(reg, LWWReg { val: 2, marker: 3 });
     /// ```
-    pub fn update(&mut self, val: V, marker: M) -> Result<()> {
+    pub fn update(&mut self, val: V, marker: M) {
         if self.marker < marker {
             self.val = val;
             self.marker = marker;
-            Ok(())
-        } else if self.marker == marker && val != self.val {
-            Err(Error::ConflictingMarker)
+        }
+    }
+
+    /// An update is invalid if the marker is exactly the same as
+    /// the current marker BUT the value is different:
+    /// ```
+    /// use crdts::{lwwreg, LWWReg};
+    /// let mut reg = LWWReg { val: 1, marker: 2 };
+    ///
+    /// // updating with a smaller marker is a no-op
+    /// assert_eq!(reg.validate_update(&32, &2), Err(lwwreg::Validation::ConflictingMarker));
+    /// ```
+    pub fn validate_update(&self, val: &V, marker: &M) -> Result<(), Validation> {
+        if &self.marker == marker && val != &self.val {
+            Err(Validation::ConflictingMarker)
         } else {
-            // Either the given marker is smaller than the marker in the
-            // register (meaning we've seen this update already) or the marker
-            // and val are the same as is currently stored, either way:
-            // this is a no-op.
             Ok(())
         }
     }
@@ -114,22 +150,28 @@ mod test {
 
         // normal update: new marker is a descended of current marker
         // EXPECTED: success, the val and marker are update
-        assert!(reg.update(32, 2).is_ok());
+        reg.update(32, 2);
         assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // stale update: new marker is an ancester of the current marker
         // EXPECTED: succes, no-op
-        assert!(reg.update(57, 1).is_ok());
+        reg.update(57, 1);
         assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // redundant update: new marker and val is same as of the current state
         // EXPECTED: success, no-op
-        assert!(reg.update(32, 2).is_ok());
+        reg.update(32, 2);
         assert_eq!(reg, LWWReg { val: 32, marker: 2 });
 
         // bad update: new marker same as of the current marker but not value
         // EXPECTED: error
-        assert_eq!(reg.update(4000, 2), Err(Error::ConflictingMarker));
+        assert_eq!(
+            reg.validate_update(&4000, &2),
+            Err(Validation::ConflictingMarker)
+        );
+
+        // Applying the update despite the validation error is a no-op
+        reg.update(4000, 2);
         assert_eq!(reg, LWWReg { val: 32, marker: 2 });
     }
 
@@ -158,12 +200,12 @@ mod test {
             let mut r1_snapshot = r1.clone();
 
             // (r1 ^ r2) ^ r3
-            assert!(r1.merge(r2.clone()).is_ok());
-            assert!(r1.merge(r3.clone()).is_ok());
+            r1.merge(r2.clone());
+            r1.merge(r3.clone());
 
             // r1 ^ (r2 ^ r3)
-            assert!(r2.merge(r3).is_ok());
-            assert!(r1_snapshot.merge(r2).is_ok());
+            r2.merge(r3);
+            r1_snapshot.merge(r2);
 
             // (r1 ^ r2) ^ r3 = r1 ^ (r2 ^ r3)
             TestResult::from_bool(r1 == r1_snapshot)
@@ -179,10 +221,10 @@ mod test {
             let r1_snapshot = r1.clone();
 
             // r1 ^ r2
-            assert!(r1.merge(r2.clone()).is_ok());
+            r1.merge(r2.clone());
 
             // r2 ^ r1
-            assert!(r2.merge(r1_snapshot).is_ok());
+            r2.merge(r1_snapshot);
 
             // r1 ^ r2 = r2 ^ r1
             TestResult::from_bool(r1 == r2)
@@ -193,7 +235,7 @@ mod test {
             let r_snapshot = r.clone();
 
             // r ^ r
-            assert!(r.merge(r_snapshot.clone()).is_ok());
+            r.merge(r_snapshot.clone());
             // r ^ r = r
             r == r_snapshot
         }

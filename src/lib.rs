@@ -10,11 +10,8 @@
 #![crate_type = "lib"]
 // #![deny(missing_docs)]
 
-mod error;
-pub use crate::error::Error;
-
 mod traits;
-pub use crate::traits::{Actor, CmRDT, CvRDT, FunkyCmRDT, FunkyCvRDT, ResetRemove};
+pub use crate::traits::{Actor, CmRDT, CvRDT, ResetRemove};
 
 /// This module contains a Last-Write-Wins Register.
 pub mod lwwreg;
