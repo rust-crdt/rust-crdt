@@ -34,7 +34,7 @@ quickcheck! {
                     for member in members {
                         let removed = ops.iter().find(|op| {
                             if let Op::Rm { clock, members } = op {
-                                members.contains(&member) && clock.dot(dot.actor.clone()) == dot
+                                members.contains(&member) && clock.dot(dot.actor.clone()) >= dot
                             } else {
                                 false
                             }
