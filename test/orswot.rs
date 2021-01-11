@@ -1,7 +1,7 @@
 extern crate crdts;
 extern crate rand;
 
-use crdts::{orswot::Op, *};
+use crdts::{orswot::Op, ctx::ReadCtx, *};
 use std::collections::HashSet;
 use std::iter::once;
 
@@ -82,42 +82,46 @@ quickcheck! {
             assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
         }
 
-    if orswot_1.validate_merge(&orswot_2).is_ok() {
+        if orswot_1.validate_merge(&orswot_2).is_ok() {
             let mut merged = orswot_1.clone();
             merged.merge(orswot_2.clone());
             let merged_members = merged.read().val;
 
-            for member in orswot_1.read().val {
-                if !merged_members.contains(&member) {
-                    assert_ne!(
-                        ops_2.iter().find(|op| {
-                            if let Op::Rm { members, .. } = op {
-                                members.contains(&member)
-                            } else if let Op::Add { members, .. } = op {
-                members.is_empty() // Empty adds can sometimes show up as removes
-                } else {
-                                false
-                            }
-                        }),
-                        None
-                    );
+            for ReadCtx { val, rm_clock, .. } in orswot_1.iter() {
+                if !merged_members.contains(&val) {
+		    let mut val_clock = rm_clock.clone();
+		    for op in ops_2.iter() {
+			match op {
+			    Op::Rm { clock, .. } => {
+				val_clock.reset_remove(clock);
+			    }
+			    Op::Add { members, dot } => {
+				if members.is_empty() {
+				    val_clock.reset_remove(&dot.clone().into());
+				}
+			    }
+			}
+		    }
+		    assert_eq!(val_clock, VClock::new());
                 }
             }
 
-            for member in orswot_2.read().val {
-                if !merged_members.contains(&member) {
-                assert_ne!(
-                    ops_1.iter().find(|op| {
-                        if let Op::Rm { members, .. } = op {
-                            members.contains(&member)
-                        } else if let Op::Add { members, .. } = op {
-                members.is_empty() // Empty adds can sometimes show up as removes
-            } else {
-                            false
-                        }
-                    }),
-                    None
-                );
+            for ReadCtx { val, rm_clock, .. } in orswot_2.iter() {
+                if !merged_members.contains(&val) {
+		    let mut val_clock = rm_clock.clone();
+		    for op in ops_1.iter() {
+			match op {
+			    Op::Rm { clock, .. } => {
+				val_clock.reset_remove(clock);
+			    }
+			    Op::Add { members, dot } => {
+				if members.is_empty() {
+				    val_clock.reset_remove(&dot.clone().into());
+				}
+			    }
+			}
+		    }
+		    assert_eq!(val_clock, VClock::new());
                 }
             }
     }
@@ -189,10 +193,8 @@ fn adds_dont_destroy_causality() {
     let mut b = a.clone();
     let mut c = a.clone();
 
-    let c_ctx = c.read();
-
-    c.apply(c.add("element", c_ctx.derive_add_ctx("A")));
-    c.apply(c.add("element", c_ctx.derive_add_ctx("B")));
+    c.apply(c.add("element", c.read().derive_add_ctx("A")));
+    c.apply(c.add("element", c.read().derive_add_ctx("B")));
 
     let c_element_ctx = c.contains(&"element");
 
@@ -341,7 +343,7 @@ fn test_reset_remove_semantics() {
 
     m1.apply(
         m1.update(101, m1.get(&101).derive_add_ctx("A"), |set, ctx| {
-            set.add(1, ctx.clone())
+            set.add(1, ctx)
         }),
     );
 
@@ -350,7 +352,7 @@ fn test_reset_remove_semantics() {
     m1.apply(m1.rm(101, m1.get(&101).derive_rm_ctx()));
     m2.apply(
         m2.update(101, m2.get(&101).derive_add_ctx("B"), |set, ctx| {
-            set.add(2, ctx.clone())
+            set.add(2, ctx)
         }),
     );
 

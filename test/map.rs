@@ -124,11 +124,12 @@ fn test_update() {
 #[test]
 fn test_remove() {
     let mut m: TMap = Map::new();
+
     let add_ctx = m.len().derive_add_ctx(1);
-
     let mut inner_map: Map<TKey, TVal, TActor> = Map::new();
-    inner_map.apply(inner_map.update(110, add_ctx.clone(), |r, ctx| r.write(0, ctx)));
+    inner_map.apply(inner_map.update(110, add_ctx, |r, ctx| r.write(0, ctx)));
 
+    let add_ctx = m.len().derive_add_ctx(1);
     m.apply(m.update(101, add_ctx, |m, ctx| {
         m.update(110, ctx, |r, ctx| r.write(0, ctx))
     }));

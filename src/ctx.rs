@@ -7,7 +7,7 @@ use crate::{Actor, CmRDT, Dot, VClock};
 ///
 /// e.g. Ship ReadCtx to the clients, then derive an Add/RmCtx and ship that back to
 /// where the CRDT is stored to perform the mutation operation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReadCtx<V, A: Actor> {
     /// clock used to derive an AddCtx
     pub add_clock: VClock<A>,
@@ -20,7 +20,7 @@ pub struct ReadCtx<V, A: Actor> {
 }
 
 /// AddCtx is used for mutations add new information to a CRDT
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AddCtx<A: Actor> {
     /// The adding vclock context
     pub clock: VClock<A>,
@@ -38,17 +38,17 @@ pub struct RmCtx<A: Actor> {
 
 impl<V, A: Actor> ReadCtx<V, A> {
     /// Derives an AddCtx for a given actor from a ReadCtx
-    pub fn derive_add_ctx(&self, actor: A) -> AddCtx<A> {
-        let mut clock = self.add_clock.clone();
+    pub fn derive_add_ctx(self, actor: A) -> AddCtx<A> {
+        let mut clock = self.add_clock;
         let dot = clock.inc(actor);
         clock.apply(dot.clone());
         AddCtx { clock, dot }
     }
 
     /// Derives a RmCtx from a ReadCtx
-    pub fn derive_rm_ctx(&self) -> RmCtx<A> {
+    pub fn derive_rm_ctx(self) -> RmCtx<A> {
         RmCtx {
-            clock: self.rm_clock.clone(),
+            clock: self.rm_clock,
         }
     }
 }

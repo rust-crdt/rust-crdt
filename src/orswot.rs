@@ -305,6 +305,40 @@ impl<M: Member, A: Actor> Orswot<M, A> {
         }
     }
 
+    /// Gets an iterator over the entries of the `Map`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use crdts::{Orswot, CmRDT};
+    ///
+    /// let actor = "actor";
+    ///
+    /// let mut set: Orswot<u8, &'static str> = Default::default();
+    ///
+    /// let add_ctx = set.read_ctx().derive_add_ctx(actor);
+    /// set.apply(set.add(100, add_ctx));
+    ///
+    /// let add_ctx = set.read_ctx().derive_add_ctx(actor);
+    /// set.apply(set.add(50, add_ctx));
+    ///
+    /// let mut items: Vec<_> = set
+    ///     .iter()
+    ///     .map(|item_ctx| *item_ctx.val)
+    ///     .collect();
+    ///
+    /// items.sort();
+    ///
+    /// assert_eq!(items, &[50, 100]);
+    /// ```
+    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<&M, A>> {
+        self.entries.iter().map(move |(m, clock)| ReadCtx {
+            add_clock: self.clock.clone(),
+            rm_clock: clock.clone(),
+            val: m,
+        })
+    }
+
     /// Retrieve the current members.
     pub fn read(&self) -> ReadCtx<HashSet<M>, A> {
         ReadCtx {

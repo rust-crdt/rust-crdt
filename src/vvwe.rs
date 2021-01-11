@@ -245,7 +245,7 @@ mod test {
             local_id: 1,
             op: Op::Insert(0),
         };
-        assert_eq!(barrier.ingest(ins.clone()), Some(ins.clone()));
+        assert_eq!(barrier.ingest(ins.clone()), Some(ins));
     }
 
     #[test]
