@@ -5,9 +5,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
 
+/// A type for modeling a range of Dot's from one actor.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DotRange<A> {
+    /// The actor identifier
     pub actor: A,
+    /// The counter range representing the dots:
+    /// `Dot::new(actor, counter_range.start) .. Dot::new(actor, counter_range.end)`
+    ///
+    /// Start is inclusive, end is exclusive.
     pub counter_range: core::ops::Range<u64>,
 }
 

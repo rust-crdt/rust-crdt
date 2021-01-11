@@ -8,7 +8,7 @@
 //!
 //! [crdt]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
 #![crate_type = "lib"]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 mod traits;
 pub use crate::traits::{Actor, CmRDT, CvRDT, ResetRemove};

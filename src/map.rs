@@ -112,9 +112,12 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
     }
 }
 
+/// The various validation errors that may occur when using a Map CRDT.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Validation<A, V: CmRDT> {
+    /// We are missing dots specified in the DotRange
     SourceOrder(crate::DotRange<A>),
+    /// There is a validation error in the nested CRDT.
     Value(V::Validation),
 }
 

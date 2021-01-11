@@ -28,6 +28,7 @@ impl<V: Default, M: Ord + Default> Default for LWWReg<V, M> {
     }
 }
 
+/// The Type of validation errors that may occur for an LWWReg.
 #[derive(Debug, PartialEq)]
 pub enum Validation {
     /// A conflicting change to a CRDT is witnessed by a dot that already exists.

@@ -9,6 +9,7 @@ impl<A: Ord + Clone + Hash> Actor for A {}
 
 /// State based CRDT's replicate by transmitting the entire CRDT state.
 pub trait CvRDT {
+    /// The validation error returned by `validate_merge`.
     type Validation;
 
     /// Some CRDT's have stricter requirements on how they must be used.
@@ -48,6 +49,8 @@ pub trait CmRDT {
     ///
     /// Op's must be idempotent, meaning any Op may be applied more than once.
     type Op;
+
+    /// The validation error returned by `validate_op`.
     type Validation;
 
     /// Some CRDT's have stricter requirements on how they must be used.
