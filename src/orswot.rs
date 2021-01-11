@@ -85,10 +85,39 @@ impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
     }
 }
 
-impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
-    type Validation = ();
+/// The variations that an ORSWOT may fail validation.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Validation<M, A> {
+    /// We've detected that two different members were inserted with the same dot.
+    /// This can break associativity.
+    DoubleSpentDot {
+        /// The dot that was double spent
+        dot: Dot<A>,
+        /// Our member inserted with this dot
+        our_member: M,
+        /// Their member inserted with this dot
+        their_member: M,
+    },
+}
 
-    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
+    type Validation = Validation<M, A>;
+
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        for (member, clock) in self.entries.iter() {
+            for (other_member, other_clock) in other.entries.iter() {
+                for Dot { actor, counter } in clock.iter() {
+                    if other_member != member && other_clock.get(&actor) == counter {
+                        return Err(Validation::DoubleSpentDot {
+                            dot: Dot::new(actor.clone(), counter),
+                            our_member: member.clone(),
+                            their_member: other_member.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

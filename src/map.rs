@@ -9,12 +9,12 @@ use crate::ctx::{AddCtx, ReadCtx, RmCtx};
 use crate::{Actor, CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// Val Trait alias to reduce redundancy in type decl.
-pub trait Val<A: Actor>: Clone + ResetRemove<A> + CmRDT + CvRDT {}
+pub trait Val<A: Actor>: Clone + Default + ResetRemove<A> + CmRDT {}
 
 impl<A, T> Val<A> for T
 where
     A: Actor,
-    T: Clone + ResetRemove<A> + CmRDT + CvRDT,
+    T: Clone + Default + ResetRemove<A> + CmRDT,
 {
 }
 
@@ -66,7 +66,7 @@ pub enum Op<K: Ord, V: Val<A>, A: Actor> {
     },
 }
 
-impl<V: Val<A> + Default, A: Actor> Default for Entry<V, A> {
+impl<V: Val<A>, A: Actor> Default for Entry<V, A> {
     fn default() -> Self {
         Self {
             clock: VClock::default(),
@@ -75,13 +75,13 @@ impl<V: Val<A> + Default, A: Actor> Default for Entry<V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> Default for Map<K, V, A> {
+impl<K: Ord, V: Val<A>, A: Actor> Default for Map<K, V, A> {
     fn default() -> Self {
         Map::new()
     }
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
+impl<K: Ord, V: Val<A>, A: Actor> ResetRemove<A> for Map<K, V, A> {
     fn reset_remove(&mut self, clock: &VClock<A>) {
         self.entries = mem::replace(&mut self.entries, BTreeMap::new())
             .into_iter()
@@ -114,16 +114,35 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> ResetRemove<A> for Map<K, V, A> {
 
 /// The various validation errors that may occur when using a Map CRDT.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Validation<A, V: CmRDT> {
+pub enum CmRDTValidation<V: CmRDT, A> {
     /// We are missing dots specified in the DotRange
     SourceOrder(crate::DotRange<A>),
+
     /// There is a validation error in the nested CRDT.
     Value(V::Validation),
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
+/// The various validation errors that may occur when using a Map CRDT.
+#[derive(Debug, PartialEq, Eq)]
+pub enum CvRDTValidation<K, V: CvRDT, A> {
+    /// We've detected that two different members were inserted with the same dot.
+    /// This can break associativity.
+    DoubleSpentDot {
+        /// The dot that was double spent
+        dot: Dot<A>,
+        /// Our member inserted with this dot
+        our_key: K,
+        /// Their member inserted with this dot
+        their_key: K,
+    },
+
+    /// There is a validation error in the nested CRDT.
+    Value(V::Validation),
+}
+
+impl<K: Ord, V: Val<A>, A: Actor> CmRDT for Map<K, V, A> {
     type Op = Op<K, V, A>;
-    type Validation = Validation<A, V>;
+    type Validation = CmRDTValidation<V, A>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
@@ -131,13 +150,13 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
             Op::Up { dot, key, op } => {
                 self.clock
                     .validate_op(&dot)
-                    .map_err(Validation::SourceOrder)?;
+                    .map_err(CmRDTValidation::SourceOrder)?;
                 let entry = self.entries.get(&key).cloned().unwrap_or_default();
                 entry
                     .clock
                     .validate_op(&dot)
-                    .map_err(Validation::SourceOrder)?;
-                entry.val.validate_op(&op).map_err(Validation::Value)
+                    .map_err(CmRDTValidation::SourceOrder)?;
+                entry.val.validate_op(&op).map_err(CmRDTValidation::Value)
             }
         }
     }
@@ -163,10 +182,31 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
-    type Validation = ();
+impl<K: Ord + Clone, V: Val<A> + CvRDT, A: Actor> CvRDT for Map<K, V, A> {
+    type Validation = CvRDTValidation<K, V, A>;
 
-    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+        for (key, entry) in self.entries.iter() {
+            for (other_key, other_entry) in other.entries.iter() {
+                for Dot { actor, counter } in entry.clock.iter() {
+                    if other_key != key && other_entry.clock.get(&actor) == counter {
+                        return Err(CvRDTValidation::DoubleSpentDot {
+                            dot: Dot::new(actor.clone(), counter),
+                            our_key: key.clone(),
+                            their_key: other_key.clone(),
+                        });
+                    }
+                }
+
+                if key == other_key && entry.clock.concurrent(&other_entry.clock) {
+                    entry
+                        .val
+                        .validate_merge(&other_entry.val)
+                        .map_err(CvRDTValidation::Value)?;
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -251,7 +291,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A> + Default, A: Actor> Map<K, V, A> {
+impl<K: Ord, V: Val<A>, A: Actor> Map<K, V, A> {
     /// Constructs an empty Map
     pub fn new() -> Self {
         Self {

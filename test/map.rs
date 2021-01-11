@@ -493,7 +493,7 @@ fn test_op_invalid_if_skipping_dot() {
 
     assert_eq!(
         map.validate_op(&op),
-        Err(map::Validation::SourceOrder(DotRange {
+        Err(map::CmRDTValidation::SourceOrder(DotRange {
             actor: 38,
             counter_range: 1..4
         }))
@@ -519,12 +519,12 @@ fn test_nested_op_invalid_if_skipping_dot() {
 
     assert_eq!(
         map.validate_op(&op),
-        Err(map::Validation::Value(map::Validation::SourceOrder(
-            DotRange {
+        Err(map::CmRDTValidation::Value(
+            map::CmRDTValidation::SourceOrder(DotRange {
                 actor: 38,
                 counter_range: 1..2
-            }
-        )))
+            })
+        ))
     );
 }
 

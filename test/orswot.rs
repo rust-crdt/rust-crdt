@@ -11,7 +11,7 @@ type Member = u8;
 type Actor = u8;
 
 quickcheck! {
-    fn prop_op_validation(ops: Vec<Op<Member, Actor>>, op: Op<Member, Actor>) -> bool {
+    fn prop_validate_op(ops: Vec<Op<Member, Actor>>, op: Op<Member, Actor>) -> bool {
         let mut orswot = Orswot::new();
         for op in ops.clone() {
             match orswot.validate_op(&op) {
@@ -82,39 +82,45 @@ quickcheck! {
             assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
         }
 
-        let mut merged = orswot_1.clone();
-        merged.merge(orswot_2.clone());
-        let merged_members = merged.read().val;
+    if orswot_1.validate_merge(&orswot_2).is_ok() {
+            let mut merged = orswot_1.clone();
+            merged.merge(orswot_2.clone());
+            let merged_members = merged.read().val;
 
-        for member in orswot_1.read().val {
-            if !merged_members.contains(&member) {
+            for member in orswot_1.read().val {
+                if !merged_members.contains(&member) {
+                    assert_ne!(
+                        ops_2.iter().find(|op| {
+                            if let Op::Rm { members, .. } = op {
+                                members.contains(&member)
+                            } else if let Op::Add { members, .. } = op {
+                members.is_empty() // Empty adds can sometimes show up as removes
+                } else {
+                                false
+                            }
+                        }),
+                        None
+                    );
+                }
+            }
+
+            for member in orswot_2.read().val {
+                if !merged_members.contains(&member) {
                 assert_ne!(
-                    ops_2.iter().find(|op| {
+                    ops_1.iter().find(|op| {
                         if let Op::Rm { members, .. } = op {
                             members.contains(&member)
-                        } else {
+                        } else if let Op::Add { members, .. } = op {
+                members.is_empty() // Empty adds can sometimes show up as removes
+            } else {
                             false
                         }
                     }),
                     None
                 );
+                }
             }
-        }
-
-        for member in orswot_2.read().val {
-            if !merged_members.contains(&member) {
-            assert_ne!(
-                ops_1.iter().find(|op| {
-                    if let Op::Rm { members, .. } = op {
-                        members.contains(&member)
-                    } else {
-                        false
-                    }
-                }),
-                None
-            );
-            }
-        }
+    }
 
         true
     }
