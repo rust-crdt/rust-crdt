@@ -36,8 +36,8 @@ impl<A: Actor> CmRDT for GCounter<A> {
     type Op = Dot<A>;
     type Validation = ();
 
-    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        unimplemented!();
+    fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     fn apply(&mut self, op: Self::Op) {
@@ -48,8 +48,8 @@ impl<A: Actor> CmRDT for GCounter<A> {
 impl<A: Actor> CvRDT for GCounter<A> {
     type Validation = ();
 
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        unimplemented!();
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     fn merge(&mut self, other: Self) {
