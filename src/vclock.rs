@@ -128,8 +128,8 @@ impl<A: Actor> CmRDT for VClock<A> {
 impl<A: Actor> CvRDT for VClock<A> {
     type Validation = ();
 
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        unimplemented!();
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     fn merge(&mut self, other: Self) {
