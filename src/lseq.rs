@@ -269,12 +269,12 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
-	    Op::Insert { dot, .. } => self.clock.validate_op(dot),
-	    Op::Delete { remote, dot, .. } => {
-		self.clock.validate_op(remote)?;
-		self.clock.validate_op(dot)
-	    }
-	}
+            Op::Insert { dot, .. } => self.clock.validate_op(dot),
+            Op::Delete { remote, dot, .. } => {
+                self.clock.validate_op(remote)?;
+                self.clock.validate_op(dot)
+            }
+        }
     }
 
     /// Apply an operation to an LSeq instance.
@@ -285,11 +285,11 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
     /// If the operation is a delete and the identifier is **not** present in the LSEQ instance the
     /// result is a no-op
     fn apply(&mut self, op: Self::Op) {
-	let op_dot = op.dot().clone();
+        let op_dot = op.dot().clone();
 
-	if op_dot <= self.clock.dot(op_dot.actor.clone()) {
-	    return;
-	}
+        if op_dot <= self.clock.dot(op_dot.actor.clone()) {
+            return;
+        }
 
         self.clock.apply(op_dot);
         match op {

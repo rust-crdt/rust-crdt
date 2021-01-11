@@ -87,13 +87,13 @@ fn test_out_of_order_inserts() {
     let mut ops = vec![op1, op2, op3];
     let mut iterations = 0;
     while let Some(op) = ops.pop() {
-	assert!(iterations < (3 * (3 + 1)) / 2);
-	iterations += 1;
-	if site2.validate_op(&op).is_ok() {
-	    site2.apply(op)
-	} else {
-	    ops.insert(0, op);
-	}
+        assert!(iterations < (3 * (3 + 1)) / 2);
+        iterations += 1;
+        if site2.validate_op(&op).is_ok() {
+            site2.apply(op)
+        } else {
+            ops.insert(0, op);
+        }
     }
 
     let site1_items = site1.iter().collect::<String>();
