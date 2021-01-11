@@ -57,8 +57,8 @@ impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
-            Op::Add { dot, members } => self.clock.validate_op(dot),
-            Op::Rm { clock, members } => Ok(()),
+            Op::Add { dot, .. } => self.clock.validate_op(dot),
+            Op::Rm { .. } => Ok(()),
         }
     }
 
@@ -88,7 +88,7 @@ impl<M: Member, A: Actor> CmRDT for Orswot<M, A> {
 impl<M: Member, A: Actor> CvRDT for Orswot<M, A> {
     type Validation = ();
 
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
         Ok(())
     }
 
