@@ -23,7 +23,7 @@ impl Arbitrary for OperationList {
         let mut site1 = LSeq::new(g.gen());
         let ops = (0..size)
             .filter_map(|_| {
-                if g.gen() || site1.len() == 0 {
+                if g.gen() || site1.is_empty() {
                     let op = site1.delete_index(g.gen_range(0, site1.len() + 1));
                     site1.apply(op.clone()?);
                     op

@@ -1,7 +1,7 @@
 extern crate crdts;
 extern crate rand;
 
-use crdts::{orswot::Op, ctx::ReadCtx, *};
+use crdts::{ctx::ReadCtx, orswot::Op, *};
 use std::collections::HashSet;
 use std::iter::once;
 
@@ -14,9 +14,8 @@ quickcheck! {
     fn prop_validate_op(ops: Vec<Op<Member, Actor>>, op: Op<Member, Actor>) -> bool {
         let mut orswot = Orswot::new();
         for op in ops.clone() {
-            match orswot.validate_op(&op) {
-                Ok(()) => orswot.apply(op),
-                Err(_) => () // drop this op since it's invalid
+            if orswot.validate_op(&op).is_ok() {
+                orswot.apply(op)
             }
         }
 
@@ -32,13 +31,13 @@ quickcheck! {
                     assert_eq!(orswot.validate_op(&op), Ok(()));
                     orswot.apply(op);
                     for member in members {
-                        let removed = ops.iter().find(|op| {
+                        let removed = ops.iter().any(|op| {
                             if let Op::Rm { clock, members } = op {
-                                members.contains(&member) && clock.dot(dot.actor.clone()) >= dot
+                                members.contains(&member) && clock.dot(dot.actor) >= dot
                             } else {
                                 false
                             }
-                        }).is_some();
+                        });
 
                         assert!(removed || orswot.contains(&member).val);
                     }
@@ -46,7 +45,7 @@ quickcheck! {
                     assert_eq!(
                        orswot.validate_op(&op),
                        Err(DotRange {
-                           actor: dot.actor.clone(),
+                           actor: dot.actor,
                            counter_range: expected_dot.counter..dot.counter,
                        })
                     );
@@ -89,39 +88,35 @@ quickcheck! {
 
             for ReadCtx { val, rm_clock, .. } in orswot_1.iter() {
                 if !merged_members.contains(&val) {
-		    let mut val_clock = rm_clock.clone();
-		    for op in ops_2.iter() {
-			match op {
-			    Op::Rm { clock, .. } => {
-				val_clock.reset_remove(clock);
-			    }
-			    Op::Add { members, dot } => {
-				if members.is_empty() {
-				    val_clock.reset_remove(&dot.clone().into());
-				}
-			    }
-			}
-		    }
-		    assert_eq!(val_clock, VClock::new());
+                    let mut val_clock = rm_clock.clone();
+                    for op in ops_2.iter() {
+                        match op {
+                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
+                            Op::Add { members, dot } => {
+                                if members.is_empty() {
+                                    val_clock.reset_remove(&dot.clone().into());
+                                }
+                            }
+                        }
+                    }
+                    assert_eq!(val_clock, VClock::new());
                 }
             }
 
             for ReadCtx { val, rm_clock, .. } in orswot_2.iter() {
                 if !merged_members.contains(&val) {
-		    let mut val_clock = rm_clock.clone();
-		    for op in ops_1.iter() {
-			match op {
-			    Op::Rm { clock, .. } => {
-				val_clock.reset_remove(clock);
-			    }
-			    Op::Add { members, dot } => {
-				if members.is_empty() {
-				    val_clock.reset_remove(&dot.clone().into());
-				}
-			    }
-			}
-		    }
-		    assert_eq!(val_clock, VClock::new());
+                    let mut val_clock = rm_clock.clone();
+                    for op in ops_1.iter() {
+                        match op {
+                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
+                            Op::Add { members, dot } => {
+                                if members.is_empty() {
+                                    val_clock.reset_remove(&dot.clone().into());
+                                }
+                            }
+                        }
+                    }
+                    assert_eq!(val_clock, VClock::new());
                 }
             }
     }

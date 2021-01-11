@@ -67,15 +67,9 @@ quickcheck! {
         a.reset_remove(&b);
 
         if a.is_empty() {
-            match a.partial_cmp(&b) {
-                Some(Ordering::Less) | Some(Ordering::Equal) => true,
-                _ => false
-            }
+            matches!(a.partial_cmp(&b), Some(Ordering::Less) | Some(Ordering::Equal))
         } else {
-            match a.partial_cmp(&b) {
-                None | Some(Ordering::Greater) => true,
-                _ => false
-            }
+            matches!(a.partial_cmp(&b), None | Some(Ordering::Greater))
         }
     }
 }
