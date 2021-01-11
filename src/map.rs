@@ -124,7 +124,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
-            Op::Rm { clock, keyset } => Ok(()),
+            Op::Rm { .. } => Ok(()),
             Op::Up { dot, key, op } => {
                 self.clock
                     .validate_op(&dot)
@@ -163,7 +163,7 @@ impl<K: Ord, V: Val<A> + Default, A: Actor> CmRDT for Map<K, V, A> {
 impl<K: Ord, V: Val<A> + Default, A: Actor> CvRDT for Map<K, V, A> {
     type Validation = ();
 
-    fn validate_merge(&self, merge: &Self) -> Result<(), Self::Validation> {
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
         Ok(())
     }
 
