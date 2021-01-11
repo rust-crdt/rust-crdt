@@ -269,8 +269,8 @@ impl<T: Clone, A: Actor> CmRDT for LSeq<T, A> {
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
-	    Op::Insert { id, dot, val } => self.clock.validate_op(dot),
-	    Op::Delete { id, remote, dot } => {
+	    Op::Insert { dot, .. } => self.clock.validate_op(dot),
+	    Op::Delete { remote, dot, .. } => {
 		self.clock.validate_op(remote)?;
 		self.clock.validate_op(dot)
 	    }
