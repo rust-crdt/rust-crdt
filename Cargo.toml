@@ -18,7 +18,7 @@ path = "test/test.rs"
 num-bigint = "0.2.1"
 serde = { version = "~1.0.91", features = ["derive"] }
 rand = "0.7"
-bitvec = "0.17"
+bitvec = { version = "0.17", features = ["serde"] }
 quickcheck = "0.9"
 
 [dev-dependencies]
