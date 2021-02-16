@@ -44,7 +44,7 @@ pub mod map;
 pub mod ctx;
 
 /// This module contains a Sequence.
-pub mod lseq;
+pub mod list;
 
 /// Version Vector with Exceptions
 pub mod vvwe;

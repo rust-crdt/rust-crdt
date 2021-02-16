@@ -1,4 +1,4 @@
-use crdts::lseq::{Index, LSeq, Op};
+use crdts::list::{Identifier, List, Op};
 use crdts::CmRDT;
 use num::BigRational;
 use rand::distributions::Alphanumeric;
@@ -23,7 +23,7 @@ impl Arbitrary for OperationList {
         };
 
         let actor = g.gen();
-        let mut site1 = LSeq::new();
+        let mut site1 = List::new();
         let ops = (0..size)
             .filter_map(|_| {
                 if g.gen() || site1.is_empty() {
@@ -44,14 +44,14 @@ impl Arbitrary for OperationList {
 
 #[test]
 fn test_new() {
-    let site1: LSeq<char, SiteId> = LSeq::new();
+    let site1: List<char, SiteId> = List::new();
     assert_eq!(site1.len(), 0);
     assert!(site1.is_empty());
 }
 
 #[test]
 fn test_is_empty() {
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
     assert!(site1.is_empty());
 
     let op = site1.insert_index(0, 'a', 'A');
@@ -61,7 +61,7 @@ fn test_is_empty() {
 
 #[test]
 fn test_append() {
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
     assert!(site1.is_empty());
 
     let op = site1.append('a', 0);
@@ -76,8 +76,8 @@ fn test_append() {
 
 #[test]
 fn test_out_of_order_inserts() {
-    let mut site1 = LSeq::new();
-    let mut site2 = LSeq::new();
+    let mut site1 = List::new();
+    let mut site2 = List::new();
     let op1 = site1.insert_index(0, 'a', 0);
     site1.apply(op1.clone());
 
@@ -106,7 +106,7 @@ fn test_out_of_order_inserts() {
 
 #[test]
 fn test_append_mixed_with_inserts() {
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
     let op = site1.append('a', 0);
     site1.apply(op);
 
@@ -124,7 +124,7 @@ fn test_append_mixed_with_inserts() {
 
 #[test]
 fn test_delete_of_index() {
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
     let op = site1.insert_index(0, 'a', 0);
     site1.apply(op);
     let op = site1.insert_index(1, 'b', 0);
@@ -138,7 +138,7 @@ fn test_delete_of_index() {
 
 #[test]
 fn test_position() {
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
     let op = site1.append('a', 0);
     site1.apply(op);
     let op = site1.append('b', 0);
@@ -149,13 +149,13 @@ fn test_position() {
 }
 
 #[test]
-fn test_reapply_lseq_ops() {
+fn test_reapply_list_ops() {
     let mut rng = rand::thread_rng();
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = LSeq::new();
-    let mut site2 = LSeq::new();
+    let mut site1 = List::new();
+    let mut site2 = List::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
@@ -205,8 +205,8 @@ fn test_insert_followed_by_deletes() {
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = LSeq::new();
-    let mut site2 = LSeq::new();
+    let mut site1 = List::new();
+    let mut site2 = List::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
@@ -238,8 +238,8 @@ fn test_insert_followed_by_deletes() {
 
 #[test]
 fn test_mutual_insert_qc1() {
-    let mut site0 = LSeq::new();
-    let mut site1 = LSeq::new();
+    let mut site0 = List::new();
+    let mut site1 = List::new();
     let plan = vec![
         (8, 24, false),
         (23, 1, true),
@@ -272,10 +272,10 @@ fn test_deep_inserts() {
     // By inserting always at the middle of the array, we construct increasingly
     // complex identifiers.
     //
-    // Previous implementations of the LSeq depended on an exponential which would panic once the tree
+    // Previous implementations of the List depended on an exponential which would panic once the tree
     // reached a certain depth.
 
-    let mut site = LSeq::new();
+    let mut site = List::new();
 
     let mut vec = Vec::new();
     let n = 1000;
@@ -299,7 +299,7 @@ fn prop_entry_ord_is_transitive(
     let (a_id_material, a_dot_material) = a;
     let (b_id_material, b_dot_material) = b;
     let (c_id_material, c_dot_material) = c;
-    let a_index = Index {
+    let a_index = Identifier {
         id: a_id_material
             .into_iter()
             .map(|(n, d)| {
@@ -312,7 +312,7 @@ fn prop_entry_ord_is_transitive(
             .sum(),
         dot: a_dot_material.into(),
     };
-    let b_index = Index {
+    let b_index = Identifier {
         id: b_id_material
             .into_iter()
             .map(|(n, d)| {
@@ -325,7 +325,7 @@ fn prop_entry_ord_is_transitive(
             .sum(),
         dot: b_dot_material.into(),
     };
-    let c_index = Index {
+    let c_index = Identifier {
         id: c_id_material
             .into_iter()
             .map(|(n, d)| {
@@ -354,8 +354,8 @@ fn prop_entry_ord_is_transitive(
 
 #[quickcheck]
 fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
-    let mut site0 = LSeq::new();
-    let mut site1 = LSeq::new();
+    let mut site0 = List::new();
+    let mut site1 = List::new();
     for (elem, idx, source_is_site0) in plan {
         let ((source, source_actor), replica) = if source_is_site0 {
             ((&mut site0, 0), &mut site1)
@@ -381,8 +381,8 @@ fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResul
     let mut op1 = op1.0.into_iter();
     let mut op2 = op2.0.into_iter();
 
-    let mut site1 = LSeq::new();
-    let mut site2 = LSeq::new();
+    let mut site1 = List::new();
+    let mut site2 = List::new();
 
     let mut s1_empty = false;
     let mut s2_empty = false;
@@ -418,8 +418,8 @@ fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResul
 
 #[quickcheck]
 fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
-    let mut site1 = LSeq::new();
-    let mut site2 = LSeq::new();
+    let mut site1 = List::new();
+    let mut site2 = List::new();
 
     for op in ops.0.into_iter() {
         // Apply the same op twice to site1
@@ -439,7 +439,7 @@ fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
 #[quickcheck]
 fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
     let mut expected_len = 0;
-    let mut site1 = LSeq::new();
+    let mut site1 = List::new();
 
     for op in oplist.0.into_iter() {
         match op {
