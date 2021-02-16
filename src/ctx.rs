@@ -53,4 +53,16 @@ impl<V, A: Ord + Clone + Debug> ReadCtx<V, A> {
             clock: self.rm_clock,
         }
     }
+
+    /// Splits this ReadCtx into its data and an empty ReadCtx
+    pub fn split(self) -> (V, ReadCtx<(), A>) {
+        (
+            self.val,
+            ReadCtx {
+                add_clock: self.add_clock,
+                rm_clock: self.rm_clock,
+                val: (),
+            },
+        )
+    }
 }
