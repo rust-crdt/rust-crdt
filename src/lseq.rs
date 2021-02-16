@@ -37,6 +37,7 @@
 //! Montreal, Quebec, Canada, Jun. 2009, pp. 404–412, doi: 10.1109/ICDCS.2009.75.
 
 use core::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::fmt;
 
 use num::{BigRational, One, Zero};
@@ -85,7 +86,7 @@ pub struct Entry<T, A> {
 /// operations.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct LSeq<T, A: Ord> {
-    seq: Vec<Entry<T, A>>, // TODO: turn this into a BTreeMap
+    seq: BTreeMap<Index<A>, T>,
     clock: VClock<A>,
 }
 
@@ -149,46 +150,31 @@ impl<T, A: Ord + Clone> LSeq<T, A> {
     pub fn insert_index(&mut self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
         ix = ix.min(self.seq.len());
         let zero = BigRational::zero();
+        let one = BigRational::one();
         let two = BigRational::from_integer(2.into());
 
-        // If we're inserting past the length of the LSEQ then it's the same as appending.
-        let insert_id = if self.seq.len() == ix {
-            let prev = self
-                .seq
-                .last()
-                .map(|entry| &entry.index.id)
-                .unwrap_or(&zero);
-            prev + &BigRational::one()
-        } else {
-            // To insert an element at position ix, we want it to appear in the sequence between
-            // ix - 1 and ix. To do this, retrieve each bound defaulting to the lower and upper
-            // bounds respectively if they are not found.
-            let prev = match ix.checked_sub(1) {
-                Some(i) => self.seq[i].index.id.clone(),
-                None => {
-                    self.seq
-                        .first()
-                        .map(|entry| &entry.index.id)
-                        .unwrap_or(&zero)
-                        - &two
-                } // -2 so that our rationals can remain integers when we compute the midpoint of prev & next
-            };
-            let next = self
-                .seq
-                .get(ix)
-                .map(|entry| &entry.index.id)
-                .unwrap_or(&zero);
-
-            (prev + next) / two
+        // TODO: replace this logic with BTreeMap::range()
+        let (prev, next) = match ix.checked_sub(1) {
+            Some(indices_to_drop) => {
+                let mut indices = self.seq.keys().skip(indices_to_drop);
+                (indices.next(), indices.next())
+            }
+            None => {
+                // Inserting at the front of the list
+                let mut indices = self.seq.keys();
+                (None, indices.next())
+            }
         };
 
-        Op::Insert {
-            index: Index {
-                id: insert_id,
-                dot: self.clock.inc(actor),
-            },
-            val,
-        }
+        let id = match (prev, next) {
+            (Some(p), Some(q)) => (&p.id + &q.id) / two,
+            (Some(p), None) => &p.id + &one,
+            (None, Some(p)) => &p.id - &one,
+            (None, None) => zero,
+        };
+        let dot = self.clock.inc(actor);
+        let index = Index { id, dot };
+        Op::Insert { index, val }
     }
 
     /// Perform a local insertion of an element at the end of the sequence.
@@ -202,18 +188,10 @@ impl<T, A: Ord + Clone> LSeq<T, A> {
     /// If `ix` is out of bounds, i.e. `ix > self.len()`, then
     /// the `Op` is not performed and `None` is returned.
     pub fn delete_index(&mut self, ix: usize, actor: A) -> Option<Op<T, A>> {
-        if ix >= self.seq.len() {
-            return None;
-        }
-
-        let data_index = self.seq[ix].index.clone();
-
-        let op = Op::Delete {
-            index: data_index,
-            dot: self.clock.inc(actor),
-        };
-
-        Some(op)
+        self.seq.keys().nth(ix).cloned().map(|index| {
+            let dot = self.clock.inc(actor);
+            Op::Delete { index, dot }
+        })
     }
 
     /// Perform a local deletion at `ix`. If `ix` is out of bounds
@@ -239,56 +217,54 @@ impl<T, A: Ord + Clone> LSeq<T, A> {
 
     /// Get the elements represented by the LSEQ.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.seq.iter().map(|Entry { val, .. }| val)
-    }
-
-    /// TODO: replace iter().cloned() with into_iter() in tests.
-    /// Get the elements represented by the LSEQ.
-    pub fn into_iter(&self) -> impl Iterator<Item = &T> {
-        self.seq.iter().map(|Entry { val, .. }| val)
+        self.seq.values()
     }
 
     /// Get the elements' Entry from the LSEQ.
-    pub fn iter_entries(&self) -> impl Iterator<Item = &Entry<T, A>> + '_ {
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&Index<A>, &T)> {
         self.seq.iter()
     }
 
-    /// Get an element at an index from the sequence represented by the LSEQ.
-    pub fn get(&self, ix: usize) -> Option<&T> {
-        self.seq.get(ix).map(|Entry { val, .. }| val)
+    /// Get an element at a position in the sequence represented by the LSEQ.
+    pub fn position(&self, ix: usize) -> Option<&T> {
+        self.iter().nth(ix)
     }
 
-    /// Finds an entry searching by its Identifier.
-    pub fn find_entry(&self, entry_index: &Index<A>) -> Option<&Entry<T, A>> {
-        self.seq
-            .iter()
-            .find(|Entry { index, .. }| index == entry_index)
+    /// Finds an elemetn by its Index.
+    pub fn get(&self, index: &Index<A>) -> Option<&T> {
+        self.seq.get(index)
+    }
+
+    /// Get first element of the sequence represented by the LSEQ.
+    pub fn first(&self) -> Option<&T> {
+        self.first_entry().map(|(_, val)| val)
+    }
+
+    /// Get the first Entry of the sequence represented by the LSEQ.
+    pub fn first_entry(&self) -> Option<(&Index<A>, &T)> {
+        self.seq.iter().next()
     }
 
     /// Get last element of the sequence represented by the LSEQ.
     pub fn last(&self) -> Option<&T> {
-        self.last_entry().map(|Entry { val, .. }| val)
+        self.last_entry().map(|(_, val)| val)
     }
 
     /// Get the last Entry of the sequence represented by the LSEQ.
-    pub fn last_entry(&self) -> Option<&Entry<T, A>> {
-        self.seq.last()
+    pub fn last_entry(&self) -> Option<(&Index<A>, &T)> {
+        self.seq.iter().rev().next()
     }
 
     /// Insert an identifier and value in the LSEQ
     fn insert(&mut self, index: Index<A>, val: T) {
         // Inserts only have an impact if the identifier is not in the tree
-        if let Err(res) = self.seq.binary_search_by(|e| e.index.cmp(&index)) {
-            self.seq.insert(res, Entry { index, val });
-        }
+        self.seq.entry(index).or_insert(val);
     }
 
     /// Remove an identifier from the LSEQ
     fn delete(&mut self, index: &Index<A>) {
         // Deletes only have an effect if the identifier is already in the tree
-        if let Ok(i) = self.seq.binary_search_by(|e| e.index.cmp(&index)) {
-            self.seq.remove(i);
-        }
+        self.seq.remove(index);
     }
 }
 

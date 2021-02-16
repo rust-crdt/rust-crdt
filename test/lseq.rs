@@ -135,15 +135,15 @@ fn test_delete_of_index() {
 }
 
 #[test]
-fn test_get() {
+fn test_position() {
     let mut site1 = LSeq::new();
     let op = site1.append('a', 0);
     site1.apply(op);
     let op = site1.append('b', 0);
     site1.apply(op);
 
-    assert_eq!(site1.get(0), Some(&'a'));
-    assert_eq!(site1.get(1), Some(&'b'));
+    assert_eq!(site1.position(0), Some(&'a'));
+    assert_eq!(site1.position(1), Some(&'b'));
 }
 
 #[test]
