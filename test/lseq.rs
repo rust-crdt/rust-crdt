@@ -276,7 +276,7 @@ fn test_deep_inserts() {
     let mut site = LSeq::new();
 
     let mut vec = Vec::new();
-    let n = 1000; // maximum reliable number of inserts we can do in this worst case example
+    let n = 1000;
     for v in 0..n {
         let i = site.len() / 2;
         println!("inserting {}/{}", i, site.len());
