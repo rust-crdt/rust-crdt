@@ -15,7 +15,7 @@ name = "test"
 path = "test/test.rs"
 
 [dependencies]
-num-bigint = "0.2.1"
+num = {version = "0.3.1", features = ["serde"]}
 serde = { version = "~1.0.91", features = ["derive"] }
 rand = "0.7"
 bitvec = { version = "0.17", features = ["serde"] }

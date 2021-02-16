@@ -40,24 +40,6 @@ impl Arbitrary for OperationList {
 }
 
 #[test]
-fn test_deep_insert() {
-    let path = (0..100)
-        .map(|i| (i, Some('a')))
-        .chain(std::iter::once((0, Some('a'))))
-        .collect();
-
-    let op = Op::Insert {
-        id: Identifier { path },
-        dot: Dot::new('a', 1),
-        val: 12,
-    };
-
-    let mut lseq = LSeq::new('a');
-    lseq.apply(op);
-    assert_eq!(lseq.iter().cloned().collect::<Vec<_>>(), vec![12]);
-}
-
-#[test]
 fn test_new() {
     let site1: LSeq<char, SiteId> = LSeq::new(0);
     assert_eq!(site1.len(), 0);
@@ -279,6 +261,29 @@ fn test_mutual_insert_qc1() {
         site0.iter().collect::<Vec<_>>(),
         site1.iter().collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn test_deep_inserts() {
+    // By inserting always at the middle of the array, we construct increasingly
+    // complex identifiers.
+    //
+    // Previous implementations of the LSeq depended on an exponential which would panic once the tree
+    // reached a certain depth.
+
+    let mut site = LSeq::new(0);
+
+    let mut vec = Vec::new();
+    let n = 1000; // maximum reliable number of inserts we can do in this worst case example
+    for v in 0..n {
+        let i = site.len() / 2;
+        println!("inserting {}/{}", i, site.len());
+        vec.insert(i, v);
+        let op = site.insert_index(i, v);
+        site.apply(op);
+    }
+    assert_eq!(site.len(), n);
+    assert_eq!(site.iter().cloned().collect::<Vec<_>>(), vec);
 }
 
 quickcheck! {

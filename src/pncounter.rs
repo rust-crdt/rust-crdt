@@ -1,4 +1,4 @@
-use num_bigint::BigInt;
+use num::bigint::BigInt;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
