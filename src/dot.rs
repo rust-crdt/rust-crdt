@@ -69,6 +69,13 @@ impl<A: fmt::Debug> fmt::Debug for Dot<A> {
     }
 }
 
+impl<A> From<(A, u64)> for Dot<A> {
+    fn from(dot_material: (A, u64)) -> Self {
+        let (actor, counter) = dot_material;
+        Self { actor, counter }
+    }
+}
+
 impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         Dot {

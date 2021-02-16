@@ -50,8 +50,11 @@ use crate::{CmRDT, Dot, VClock};
 /// A unique identifier for an element in the sequence.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Index<A> {
-    id: BigRational,
-    dot: Dot<A>,
+    /// The id is the main ordering component of the index.
+    pub id: BigRational,
+
+    /// The dot is used to disambiguate indices when the id's are identical.
+    pub dot: Dot<A>,
 }
 
 impl<A: Ord> PartialOrd for Index<A> {
@@ -86,7 +89,7 @@ pub struct LSeq<T, A: Ord> {
 pub enum Op<T, A> {
     /// Insert an element
     Insert {
-        /// Then Index to insert at
+        /// The Index to insert at
         index: Index<A>,
         /// Element to insert
         val: T,

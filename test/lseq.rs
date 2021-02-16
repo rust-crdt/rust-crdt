@@ -1,5 +1,6 @@
-use crdts::lseq::{LSeq, Op};
+use crdts::lseq::{Index, LSeq, Op};
 use crdts::CmRDT;
+use num::BigRational;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
@@ -8,6 +9,7 @@ type SiteId = u32;
 struct OperationList(pub Vec<Op<char, SiteId>>);
 
 use quickcheck::{Arbitrary, Gen, TestResult};
+use quickcheck_macros::quickcheck;
 
 impl Arbitrary for OperationList {
     fn arbitrary<G: Gen>(g: &mut G) -> OperationList {
@@ -288,98 +290,164 @@ fn test_deep_inserts() {
     assert_eq!(site.iter().cloned().collect::<Vec<_>>(), vec);
 }
 
-quickcheck! {
-    fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
-        let mut site0 = LSeq::new();
-        let mut site1 = LSeq::new();
-        for (elem, idx, source_is_site0) in plan {
-            let ((source, source_actor), replica) = if source_is_site0 {
-                ((&mut site0, 0), &mut site1)
-            } else {
-                ((&mut site1, 1), &mut site0)
-            };
-            let i = idx % (source.len() + 1);
-            let op = source.insert_index(i, elem, source_actor);
-            source.apply(op.clone());
-            replica.apply(op);
+#[quickcheck]
+fn prop_entry_ord_is_transitive(
+    a: (Vec<(i64, i64)>, (u8, u64)),
+    b: (Vec<(i64, i64)>, (u8, u64)),
+    c: (Vec<(i64, i64)>, (u8, u64)),
+) -> bool {
+    let (a_id_material, a_dot_material) = a;
+    let (b_id_material, b_dot_material) = b;
+    let (c_id_material, c_dot_material) = c;
+    let a_index = Index {
+        id: a_id_material
+            .into_iter()
+            .map(|(n, d)| {
+                if d != 0 {
+                    BigRational::new(n.into(), d.into())
+                } else {
+                    BigRational::from_integer(n.into())
+                }
+            })
+            .sum(),
+        dot: a_dot_material.into(),
+    };
+    let b_index = Index {
+        id: b_id_material
+            .into_iter()
+            .map(|(n, d)| {
+                if d != 0 {
+                    BigRational::new(n.into(), d.into())
+                } else {
+                    BigRational::from_integer(n.into())
+                }
+            })
+            .sum(),
+        dot: b_dot_material.into(),
+    };
+    let c_index = Index {
+        id: c_id_material
+            .into_iter()
+            .map(|(n, d)| {
+                if d != 0 {
+                    BigRational::new(n.into(), d.into())
+                } else {
+                    BigRational::from_integer(n.into())
+                }
+            })
+            .sum(),
+        dot: c_dot_material.into(),
+    };
 
-        }
+    let a_b_ord = a_index.cmp(&b_index);
+    let a_c_ord = a_index.cmp(&c_index);
+    let b_c_ord = b_index.cmp(&c_index);
 
-        assert_eq!(site0.iter().collect::<Vec<_>>(), site1.iter().collect::<Vec<_>>());
-        true
+    if a_b_ord == b_c_ord {
+        assert_eq!(a_b_ord, a_c_ord);
+    }
+    if a_index == b_index {
+        assert_eq!(a_c_ord, b_c_ord);
+    }
+    true
+}
+
+#[quickcheck]
+fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
+    let mut site0 = LSeq::new();
+    let mut site1 = LSeq::new();
+    for (elem, idx, source_is_site0) in plan {
+        let ((source, source_actor), replica) = if source_is_site0 {
+            ((&mut site0, 0), &mut site1)
+        } else {
+            ((&mut site1, 1), &mut site0)
+        };
+        let i = idx % (source.len() + 1);
+        let op = source.insert_index(i, elem, source_actor);
+        source.apply(op.clone());
+        replica.apply(op);
     }
 
-    fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResult {
-        let mut rng = quickcheck::StdThreadGen::new(1000);
-        let mut op1 = op1.0.into_iter();
-        let mut op2 = op2.0.into_iter();
+    assert_eq!(
+        site0.iter().collect::<Vec<_>>(),
+        site1.iter().collect::<Vec<_>>()
+    );
+    true
+}
 
-        let mut site1 = LSeq::new();
-        let mut site2 = LSeq::new();
+#[quickcheck]
+fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResult {
+    let mut rng = quickcheck::StdThreadGen::new(1000);
+    let mut op1 = op1.0.into_iter();
+    let mut op2 = op2.0.into_iter();
 
-        let mut s1_empty = false;
-        let mut s2_empty = false;
-        while !s1_empty && !s2_empty {
-            if rng.gen() {
-                match op1.next() {
-                    Some(o) => {
-                        site1.apply(o.clone());
-                        site2.apply(o);
-                    }
-                    None => {
-                        s1_empty = true;
-                    }
+    let mut site1 = LSeq::new();
+    let mut site2 = LSeq::new();
+
+    let mut s1_empty = false;
+    let mut s2_empty = false;
+    while !s1_empty && !s2_empty {
+        if rng.gen() {
+            match op1.next() {
+                Some(o) => {
+                    site1.apply(o.clone());
+                    site2.apply(o);
                 }
-            } else {
-                match op2.next() {
-                    Some(o) => {
-                        site1.apply(o.clone());
-                        site2.apply(o);
-                    }
-                    None => {
-                        s2_empty = true;
-                    }
+                None => {
+                    s1_empty = true;
+                }
+            }
+        } else {
+            match op2.next() {
+                Some(o) => {
+                    site1.apply(o.clone());
+                    site2.apply(o);
+                }
+                None => {
+                    s2_empty = true;
                 }
             }
         }
-
-        let site1_text = site1.iter().collect::<String>();
-        let site2_text = site2.iter().collect::<String>();
-
-        TestResult::from_bool(site1_text == site2_text)
     }
 
-    fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
-        let mut site1 = LSeq::new();
-        let mut site2 = LSeq::new();
+    let site1_text = site1.iter().collect::<String>();
+    let site2_text = site2.iter().collect::<String>();
 
-        for op in ops.0.into_iter() {
-            // Apply the same op twice to site1
-            site1.apply(op.clone());
-            site1.apply(op.clone());
+    TestResult::from_bool(site1_text == site2_text)
+}
 
-            // But only apply that op once to site2
-            site2.apply(op);
-        }
+#[quickcheck]
+fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
+    let mut site1 = LSeq::new();
+    let mut site2 = LSeq::new();
 
-        let site1_text = site1.iter().collect::<String>();
-        let site2_text = site2.iter().collect::<String>();
+    for op in ops.0.into_iter() {
+        // Apply the same op twice to site1
+        site1.apply(op.clone());
+        site1.apply(op.clone());
 
-        TestResult::from_bool(site1_text == site2_text)
+        // But only apply that op once to site2
+        site2.apply(op);
     }
 
-    fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
-        let mut expected_len = 0;
-        let mut site1 = LSeq::new();
+    let site1_text = site1.iter().collect::<String>();
+    let site2_text = site2.iter().collect::<String>();
 
-        for op in oplist.0.into_iter() {
-            match op {
-                Op::Insert { .. } => expected_len += 1,
-                Op::Delete { .. } => expected_len -= 1,
-            };
-            site1.apply(op);
-        }
+    TestResult::from_bool(site1_text == site2_text)
+}
 
-        TestResult::from_bool(site1.len() == expected_len)
+#[quickcheck]
+fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
+    let mut expected_len = 0;
+    let mut site1 = LSeq::new();
+
+    for op in oplist.0.into_iter() {
+        match op {
+            Op::Insert { .. } => expected_len += 1,
+            Op::Delete { .. } => expected_len -= 1,
+        };
+        site1.apply(op);
     }
+
+    TestResult::from_bool(site1.len() == expected_len)
 }
