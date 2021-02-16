@@ -42,27 +42,24 @@ use std::fmt;
 use num::{BigRational, One, Zero};
 use serde::{Deserialize, Serialize};
 
-/// Contains the implementation of the exponential tree for LSeq
 use crate::{CmRDT, Dot, VClock};
 
-/// An `Entry` to the LSEQ consists of:
+/// Contains the implementation of the exponential tree for LSeq
+
+/// A unique identifier for an element in the sequence.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Entry<T, A> {
-    /// The identifier of the entry.
-    pub id: BigRational,
-    /// The site id that inserted this entry.
-    pub dot: Dot<A>,
-    /// The element for the entry.
-    pub val: T,
+pub struct Index<A> {
+    id: BigRational,
+    dot: Dot<A>,
 }
 
-impl<T: Eq, A: Ord> PartialOrd for Entry<T, A> {
+impl<A: Ord> PartialOrd for Index<A> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(&other))
     }
 }
 
-impl<T: Eq, A: Ord> Ord for Entry<T, A> {
+impl<A: Ord> Ord for Index<A> {
     fn cmp(&self, other: &Self) -> Ordering {
         (&self.id, &self.dot.actor, &self.dot.counter).cmp(&(
             &other.id,
@@ -72,52 +69,58 @@ impl<T: Eq, A: Ord> Ord for Entry<T, A> {
     }
 }
 
+/// An `Entry` to the LSEQ consists of:
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Entry<T, A> {
+    /// The index of the entry.
+    pub index: Index<A>,
+    /// The element for the entry.
+    pub val: T,
+}
+
 /// As described in the module documentation:
 ///
 /// An LSEQ tree is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
-pub struct LSeq<T: Eq, A: Ord> {
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct LSeq<T, A: Ord> {
     seq: Vec<Entry<T, A>>, // TODO: turn this into a BTreeMap
     clock: VClock<A>,
 }
 
 /// Operations that can be performed on an LSeq tree
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Op<T, A> {
     /// Insert an element
     Insert {
-        /// Identifier to insert at
-        id: BigRational,
-        /// clock of site that issued insertion
-        dot: Dot<A>,
+        /// Then Index to insert at
+        index: Index<A>,
         /// Element to insert
         val: T,
     },
     /// Delete an element
     Delete {
-        /// The original clock information of the insertion we're removing
-        remote: Dot<A>,
-        /// Identifier to remove
-        id: BigRational,
+        /// The Index of the insertion we're removing
+        index: Index<A>,
         /// id of site that issued delete
         dot: Dot<A>,
     },
 }
 
 impl<T, A> Op<T, A> {
-    /// Return the Dot originating the operation
-    pub fn dot(&self) -> &Dot<A> {
+    /// Returns the Index this operation is concerning.
+    pub fn index(&self) -> &Index<A> {
         match self {
-            Op::Insert { dot, .. } | Op::Delete { dot, .. } => dot,
+            Op::Insert { index, .. } | Op::Delete { index, .. } => index,
         }
     }
 
-    /// Return the Identifier contained in the operation
-    pub fn id(&self) -> &BigRational {
+    /// Return the Dot originating the operation.
+    pub fn dot(&self) -> &Dot<A> {
         match self {
-            Op::Insert { id, .. } | Op::Delete { id, .. } => id,
+            Op::Insert { index, .. } => &index.dot,
+            Op::Delete { dot, .. } => dot,
         }
     }
 }
@@ -149,25 +152,41 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
         let two = BigRational::from_integer(2.into());
 
         // If we're inserting past the length of the LSEQ then it's the same as appending.
-        let ix_ident = if self.seq.len() == ix {
-            let prev = self.seq.last().map(|entry| &entry.id).unwrap_or(&zero);
+        let insert_id = if self.seq.len() == ix {
+            let prev = self
+                .seq
+                .last()
+                .map(|entry| &entry.index.id)
+                .unwrap_or(&zero);
             prev + &BigRational::one()
         } else {
             // To insert an element at position ix, we want it to appear in the sequence between
             // ix - 1 and ix. To do this, retrieve each bound defaulting to the lower and upper
             // bounds respectively if they are not found.
             let prev = match ix.checked_sub(1) {
-                Some(i) => self.seq[i].id.clone(),
-                None => self.seq.first().map(|entry| &entry.id).unwrap_or(&zero) - &two, // -2 so that our rationals can remain integers when we compute the midpoint of prev & next
+                Some(i) => self.seq[i].index.id.clone(),
+                None => {
+                    self.seq
+                        .first()
+                        .map(|entry| &entry.index.id)
+                        .unwrap_or(&zero)
+                        - &two
+                } // -2 so that our rationals can remain integers when we compute the midpoint of prev & next
             };
-            let next = self.seq.get(ix).map(|entry| &entry.id).unwrap_or(&zero);
+            let next = self
+                .seq
+                .get(ix)
+                .map(|entry| &entry.index.id)
+                .unwrap_or(&zero);
 
             (prev + next) / two
         };
 
         Op::Insert {
-            id: ix_ident,
-            dot: self.clock.inc(actor),
+            index: Index {
+                id: insert_id,
+                dot: self.clock.inc(actor),
+            },
             val,
         }
     }
@@ -190,8 +209,7 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
         let data = self.seq[ix].clone();
 
         let op = Op::Delete {
-            id: data.id,
-            remote: data.dot,
+            index: data.index,
             dot: self.clock.inc(actor),
         };
 
@@ -224,6 +242,12 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
         self.seq.iter().map(|Entry { val, .. }| val)
     }
 
+    /// TODO: replace iter().cloned() with into_iter() in tests.
+    /// Get the elements represented by the LSEQ.
+    pub fn into_iter(&self) -> impl Iterator<Item = &T> {
+        self.seq.iter().map(|Entry { val, .. }| val)
+    }
+
     /// Get the elements' Entry from the LSEQ.
     pub fn iter_entries(&self) -> impl Iterator<Item = &Entry<T, A>> + '_ {
         self.seq.iter()
@@ -235,10 +259,10 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
     }
 
     /// Finds an entry searching by its Identifier.
-    pub fn find_entry(&self, ident: &(&BigRational, &Dot<A>)) -> Option<&Entry<T, A>> {
+    pub fn find_entry(&self, entry_index: &Index<A>) -> Option<&Entry<T, A>> {
         self.seq
             .iter()
-            .find(|Entry { id, dot, .. }| &(id, dot) == ident)
+            .find(|Entry { index, .. }| index == entry_index)
     }
 
     /// Get last element of the sequence represented by the LSEQ.
@@ -252,20 +276,17 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
     }
 
     /// Insert an identifier and value in the LSEQ
-    fn insert(&mut self, id: BigRational, dot: Dot<A>, val: T) {
+    fn insert(&mut self, index: Index<A>, val: T) {
         // Inserts only have an impact if the identifier is not in the tree
-        let entry = Entry { id, dot, val };
-        if let Err(res) = self.seq.binary_search_by(|e| e.id.cmp(&entry.id)) {
-            self.seq.insert(res, entry);
+        if let Err(res) = self.seq.binary_search_by(|e| e.index.cmp(&index)) {
+            self.seq.insert(res, Entry { index, val });
         }
     }
 
     /// Remove an identifier from the LSEQ
-    fn delete(&mut self, id: BigRational, dot: Dot<A>) {
+    fn delete(&mut self, index: &Index<A>) {
         // Deletes only have an effect if the identifier is already in the tree
-        if let Ok(i) = self.seq.binary_search_by(move |e| {
-            (&e.id, &e.dot.actor, &e.dot.counter).cmp(&(&id, &dot.actor, &dot.counter))
-        }) {
+        if let Ok(i) = self.seq.binary_search_by(|e| e.index.cmp(&index)) {
             self.seq.remove(i);
         }
     }
@@ -276,13 +297,7 @@ impl<T: Clone + Eq, A: Ord + Clone + fmt::Debug> CmRDT for LSeq<T, A> {
     type Validation = crate::DotRange<A>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        match op {
-            Op::Insert { dot, .. } => self.clock.validate_op(dot),
-            Op::Delete { remote, dot, .. } => {
-                self.clock.validate_op(remote)?;
-                self.clock.validate_op(dot)
-            }
-        }
+        self.clock.validate_op(op.dot())
     }
 
     /// Apply an operation to an LSeq instance.
@@ -295,14 +310,14 @@ impl<T: Clone + Eq, A: Ord + Clone + fmt::Debug> CmRDT for LSeq<T, A> {
     fn apply(&mut self, op: Self::Op) {
         let op_dot = op.dot().clone();
 
-        if op_dot <= self.clock.dot(op_dot.actor.clone()) {
+        if op_dot.counter <= self.clock.get(&op_dot.actor) {
             return;
         }
 
         self.clock.apply(op_dot);
         match op {
-            Op::Insert { id, dot, val } => self.insert(id, dot, val),
-            Op::Delete { remote, id, .. } => self.delete(id, remote),
+            Op::Insert { index, val } => self.insert(index, val),
+            Op::Delete { index, .. } => self.delete(&index),
         }
     }
 }
