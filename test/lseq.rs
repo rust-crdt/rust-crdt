@@ -1,5 +1,5 @@
-use crdts::lseq::{ident::Identifier, LSeq, Op};
-use crdts::{CmRDT, Dot};
+use crdts::lseq::{LSeq, Op};
+use crdts::CmRDT;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
@@ -20,15 +20,16 @@ impl Arbitrary for OperationList {
             }
         };
 
-        let mut site1 = LSeq::new(g.gen());
+        let actor = g.gen();
+        let mut site1 = LSeq::new();
         let ops = (0..size)
             .filter_map(|_| {
                 if g.gen() || site1.is_empty() {
-                    let op = site1.delete_index(g.gen_range(0, site1.len() + 1));
+                    let op = site1.delete_index(g.gen_range(0, site1.len() + 1), actor);
                     site1.apply(op.clone()?);
                     op
                 } else {
-                    let op = site1.delete_index(g.gen_range(0, site1.len()));
+                    let op = site1.delete_index(g.gen_range(0, site1.len()), actor);
                     site1.apply(op.clone()?);
                     op
                 }
@@ -41,31 +42,31 @@ impl Arbitrary for OperationList {
 
 #[test]
 fn test_new() {
-    let site1: LSeq<char, SiteId> = LSeq::new(0);
+    let site1: LSeq<char, SiteId> = LSeq::new();
     assert_eq!(site1.len(), 0);
     assert!(site1.is_empty());
 }
 
 #[test]
 fn test_is_empty() {
-    let mut site1 = LSeq::new(0);
+    let mut site1 = LSeq::new();
     assert!(site1.is_empty());
 
-    let op = site1.insert_index(0, 'a');
+    let op = site1.insert_index(0, 'a', 'A');
     site1.apply(op);
     assert!(!site1.is_empty());
 }
 
 #[test]
 fn test_append() {
-    let mut site1 = LSeq::new(0);
+    let mut site1 = LSeq::new();
     assert!(site1.is_empty());
 
-    let op = site1.append('a');
+    let op = site1.append('a', 0);
     site1.apply(op);
-    let op = site1.append('b');
+    let op = site1.append('b', 0);
     site1.apply(op);
-    let op = site1.append('c');
+    let op = site1.append('c', 0);
     site1.apply(op);
 
     assert_eq!(site1.iter().collect::<String>(), "abc");
@@ -73,15 +74,15 @@ fn test_append() {
 
 #[test]
 fn test_out_of_order_inserts() {
-    let mut site1 = LSeq::new(0);
-    let mut site2 = LSeq::new(1);
-    let op1 = site1.insert_index(0, 'a');
+    let mut site1 = LSeq::new();
+    let mut site2 = LSeq::new();
+    let op1 = site1.insert_index(0, 'a', 0);
     site1.apply(op1.clone());
 
-    let op2 = site1.insert_index(1, 'c');
+    let op2 = site1.insert_index(1, 'c', 0);
     site1.apply(op2.clone());
 
-    let op3 = site1.insert_index(1, 'b');
+    let op3 = site1.insert_index(1, 'b', 0);
     site1.apply(op3.clone());
 
     let mut ops = vec![op1, op2, op3];
@@ -103,17 +104,17 @@ fn test_out_of_order_inserts() {
 
 #[test]
 fn test_append_mixed_with_inserts() {
-    let mut site1 = LSeq::new(0);
-    let op = site1.append('a');
+    let mut site1 = LSeq::new();
+    let op = site1.append('a', 0);
     site1.apply(op);
 
-    let op = site1.insert_index(0, 'b');
+    let op = site1.insert_index(0, 'b', 0);
     site1.apply(op);
 
-    let op = site1.append('c');
+    let op = site1.append('c', 0);
     site1.apply(op);
 
-    let op = site1.insert_index(1, 'd');
+    let op = site1.insert_index(1, 'd', 0);
     site1.apply(op);
 
     assert_eq!(site1.iter().collect::<String>(), "bdac");
@@ -121,24 +122,24 @@ fn test_append_mixed_with_inserts() {
 
 #[test]
 fn test_delete_of_index() {
-    let mut site1 = LSeq::new(0);
-    let op = site1.insert_index(0, 'a');
+    let mut site1 = LSeq::new();
+    let op = site1.insert_index(0, 'a', 0);
     site1.apply(op);
-    let op = site1.insert_index(1, 'b');
+    let op = site1.insert_index(1, 'b', 0);
     site1.apply(op);
     assert_eq!(site1.iter().collect::<String>(), "ab");
 
-    let op = site1.delete_index(0);
+    let op = site1.delete_index(0, 0);
     site1.apply(op.unwrap());
     assert_eq!(site1.iter().collect::<String>(), "b");
 }
 
 #[test]
 fn test_get() {
-    let mut site1 = LSeq::new(0);
-    let op = site1.append('a');
+    let mut site1 = LSeq::new();
+    let op = site1.append('a', 0);
     site1.apply(op);
-    let op = site1.append('b');
+    let op = site1.append('b', 0);
     site1.apply(op);
 
     assert_eq!(site1.get(0), Some(&'a'));
@@ -151,19 +152,19 @@ fn test_reapply_lseq_ops() {
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = LSeq::new(0);
-    let mut site2 = LSeq::new(1);
+    let mut site1 = LSeq::new();
+    let mut site2 = LSeq::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
         let ix = rng.gen_range(0, site1.len() + 1);
-        let insert_op = site1.insert_index(ix, c);
+        let insert_op = site1.insert_index(ix, c, 0);
         site1.apply(insert_op.clone());
 
         site2.apply(insert_op.clone());
         site2.apply(insert_op.clone());
 
-        let delete_op = site2.delete_index(ix).expect(&format!(
+        let delete_op = site2.delete_index(ix, 1).expect(&format!(
             "ixxxx@{} was out of bounds@{}",
             ix,
             site2.len()
@@ -202,20 +203,21 @@ fn test_insert_followed_by_deletes() {
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = LSeq::new(0);
-    let mut site2 = LSeq::new(1);
+    let mut site1 = LSeq::new();
+    let mut site2 = LSeq::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
         let ix = rng.gen_range(0, site1.len() + 1);
-        let insert_op = site1.insert_index(ix, c);
+        let insert_op = site1.insert_index(ix, c, 0);
         site1.apply(insert_op.clone());
         site2.apply(insert_op);
 
-        let delete_op =
-            site2
-                .delete_index(ix)
-                .expect(&format!("ix@{} was out of bounds@{}", ix, site2.len()));
+        let delete_op = site2.delete_index(ix, 1).expect(&format!(
+            "ix@{} was out of bounds@{}",
+            ix,
+            site2.len()
+        ));
         site2.apply(delete_op.clone());
         site1.apply(delete_op);
     }
@@ -234,8 +236,8 @@ fn test_insert_followed_by_deletes() {
 
 #[test]
 fn test_mutual_insert_qc1() {
-    let mut site0 = LSeq::new(0);
-    let mut site1 = LSeq::new(1);
+    let mut site0 = LSeq::new();
+    let mut site1 = LSeq::new();
     let plan = vec![
         (8, 24, false),
         (23, 1, true),
@@ -245,14 +247,14 @@ fn test_mutual_insert_qc1() {
     ];
 
     for (elem, idx, source_is_site0) in plan {
-        let (source, replica) = if source_is_site0 {
-            (&mut site0, &mut site1)
+        let ((source, source_actor), replica) = if source_is_site0 {
+            ((&mut site0, 0), &mut site1)
         } else {
-            (&mut site1, &mut site0)
+            ((&mut site1, 1), &mut site0)
         };
         let i = idx % (source.len() + 1);
-        println!("{:?} inserting {} @ {}", source.actor(), elem, i);
-        let op = source.insert_index(i, elem);
+        println!("{:?} inserting {} @ {}", source_actor, elem, i);
+        let op = source.insert_index(i, elem, source_actor);
         source.apply(op.clone());
         replica.apply(op);
     }
@@ -271,7 +273,7 @@ fn test_deep_inserts() {
     // Previous implementations of the LSeq depended on an exponential which would panic once the tree
     // reached a certain depth.
 
-    let mut site = LSeq::new(0);
+    let mut site = LSeq::new();
 
     let mut vec = Vec::new();
     let n = 1000; // maximum reliable number of inserts we can do in this worst case example
@@ -279,7 +281,7 @@ fn test_deep_inserts() {
         let i = site.len() / 2;
         println!("inserting {}/{}", i, site.len());
         vec.insert(i, v);
-        let op = site.insert_index(i, v);
+        let op = site.insert_index(i, v, 0);
         site.apply(op);
     }
     assert_eq!(site.len(), n);
@@ -288,16 +290,16 @@ fn test_deep_inserts() {
 
 quickcheck! {
     fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
-        let mut site0 = LSeq::new(0);
-        let mut site1 = LSeq::new(1);
+        let mut site0 = LSeq::new();
+        let mut site1 = LSeq::new();
         for (elem, idx, source_is_site0) in plan {
-            let (source, replica) = if source_is_site0 {
-                (&mut site0, &mut site1)
+            let ((source, source_actor), replica) = if source_is_site0 {
+                ((&mut site0, 0), &mut site1)
             } else {
-                (&mut site1, &mut site0)
+                ((&mut site1, 1), &mut site0)
             };
             let i = idx % (source.len() + 1);
-            let op = source.insert_index(i, elem);
+            let op = source.insert_index(i, elem, source_actor);
             source.apply(op.clone());
             replica.apply(op);
 
@@ -312,8 +314,8 @@ quickcheck! {
         let mut op1 = op1.0.into_iter();
         let mut op2 = op2.0.into_iter();
 
-        let mut site1 = LSeq::new(0);
-        let mut site2 = LSeq::new(1);
+        let mut site1 = LSeq::new();
+        let mut site2 = LSeq::new();
 
         let mut s1_empty = false;
         let mut s2_empty = false;
@@ -348,8 +350,8 @@ quickcheck! {
     }
 
     fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
-        let mut site1 = LSeq::new(0);
-        let mut site2 = LSeq::new(1);
+        let mut site1 = LSeq::new();
+        let mut site2 = LSeq::new();
 
         for op in ops.0.into_iter() {
             // Apply the same op twice to site1
@@ -368,7 +370,7 @@ quickcheck! {
 
     fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
         let mut expected_len = 0;
-        let mut site1 = LSeq::new(0);
+        let mut site1 = LSeq::new();
 
         for op in oplist.0.into_iter() {
             match op {

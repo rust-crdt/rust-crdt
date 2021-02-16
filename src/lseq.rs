@@ -43,9 +43,6 @@ use num::{BigRational, One, Zero};
 use serde::{Deserialize, Serialize};
 
 /// Contains the implementation of the exponential tree for LSeq
-pub mod ident;
-use ident::{IdentGen, Identifier};
-
 use crate::{CmRDT, Dot, VClock};
 
 /// An `Entry` to the LSEQ consists of:
@@ -83,7 +80,6 @@ impl<T: Eq, A: Ord> Ord for Entry<T, A> {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
 pub struct LSeq<T: Eq, A: Ord> {
     seq: Vec<Entry<T, A>>, // TODO: turn this into a BTreeMap
-    gen: IdentGen<A>,
     clock: VClock<A>,
 }
 
@@ -126,23 +122,19 @@ impl<T, A> Op<T, A> {
     }
 }
 
-impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
-    /// Create an empty LSEQ
-    pub fn new(id: A) -> Self {
-        LSeq {
-            seq: Vec::new(),
-            gen: IdentGen::new(id),
-            clock: VClock::new(),
+impl<T: Eq, A: Ord> Default for LSeq<T, A> {
+    fn default() -> Self {
+        Self {
+            seq: Default::default(),
+            clock: Default::default(),
         }
     }
+}
 
-    /// Create an empty LSEQ with custom base size
-    pub fn new_with_args(id: A, base: u8, boundary: u64) -> Self {
-        LSeq {
-            seq: Vec::new(),
-            gen: IdentGen::new_with_args(id, base, boundary),
-            clock: VClock::new(),
-        }
+impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
+    /// Create an empty LSEQ
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Perform a local insertion of an element at a given position.
@@ -151,7 +143,7 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
     /// # Panics
     ///
     /// * If the allocation of a new index was not between `ix` and `ix - 1`.
-    pub fn insert_index(&mut self, mut ix: usize, val: T) -> Op<T, A> {
+    pub fn insert_index(&mut self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
         ix = ix.min(self.seq.len());
         let zero = BigRational::zero();
         let two = BigRational::from_integer(2.into());
@@ -175,22 +167,22 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
 
         Op::Insert {
             id: ix_ident,
-            dot: self.clock.inc(self.actor()),
+            dot: self.clock.inc(actor),
             val,
         }
     }
 
     /// Perform a local insertion of an element at the end of the sequence.
-    pub fn append(&mut self, c: T) -> Op<T, A> {
+    pub fn append(&mut self, c: T, actor: A) -> Op<T, A> {
         let ix = self.seq.len();
-        self.insert_index(ix, c)
+        self.insert_index(ix, c, actor)
     }
 
     /// Perform a local deletion at `ix`.
     ///
     /// If `ix` is out of bounds, i.e. `ix > self.len()`, then
     /// the `Op` is not performed and `None` is returned.
-    pub fn delete_index(&mut self, ix: usize) -> Option<Op<T, A>> {
+    pub fn delete_index(&mut self, ix: usize, actor: A) -> Option<Op<T, A>> {
         if ix >= self.seq.len() {
             return None;
         }
@@ -200,7 +192,7 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
         let op = Op::Delete {
             id: data.id,
             remote: data.dot,
-            dot: self.clock.inc(self.actor()),
+            dot: self.clock.inc(actor),
         };
 
         Some(op)
@@ -208,10 +200,10 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
 
     /// Perform a local deletion at `ix`. If `ix` is out of bounds
     /// then the last element will be deleted, i.e. `self.len() - 1`.
-    pub fn delete_index_or_last(&mut self, ix: usize) -> Op<T, A> {
-        match self.delete_index(ix) {
+    pub fn delete_index_or_last(&mut self, ix: usize, actor: A) -> Op<T, A> {
+        match self.delete_index(ix, actor.clone()) {
             None => self
-                .delete_index(self.len() - 1)
+                .delete_index(self.len() - 1, actor)
                 .expect("delete_index_or_last: 'self.len() - 1'"),
             Some(op) => op,
         }
@@ -257,11 +249,6 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
     /// Get the last Entry of the sequence represented by the LSEQ.
     pub fn last_entry(&self) -> Option<&Entry<T, A>> {
         self.seq.last()
-    }
-
-    /// Actor who is initiating operations on this LSeq
-    pub fn actor(&self) -> A {
-        self.gen.site_id.clone()
     }
 
     /// Insert an identifier and value in the LSEQ
