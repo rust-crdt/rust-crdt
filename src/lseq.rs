@@ -125,7 +125,7 @@ impl<T, A> Op<T, A> {
     }
 }
 
-impl<T: Eq, A: Ord> Default for LSeq<T, A> {
+impl<T, A: Ord> Default for LSeq<T, A> {
     fn default() -> Self {
         Self {
             seq: Default::default(),
@@ -134,7 +134,7 @@ impl<T: Eq, A: Ord> Default for LSeq<T, A> {
     }
 }
 
-impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
+impl<T, A: Ord + Clone> LSeq<T, A> {
     /// Create an empty LSEQ
     pub fn new() -> Self {
         Self::default()
@@ -206,10 +206,10 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
             return None;
         }
 
-        let data = self.seq[ix].clone();
+        let data_index = self.seq[ix].index.clone();
 
         let op = Op::Delete {
-            index: data.index,
+            index: data_index,
             dot: self.clock.inc(actor),
         };
 
@@ -292,7 +292,7 @@ impl<T: Clone + Eq, A: Ord + Clone> LSeq<T, A> {
     }
 }
 
-impl<T: Clone + Eq, A: Ord + Clone + fmt::Debug> CmRDT for LSeq<T, A> {
+impl<T, A: Ord + Clone + fmt::Debug> CmRDT for LSeq<T, A> {
     type Op = Op<T, A>;
     type Validation = crate::DotRange<A>;
 
@@ -321,5 +321,3 @@ impl<T: Clone + Eq, A: Ord + Clone + fmt::Debug> CmRDT for LSeq<T, A> {
         }
     }
 }
-
-// TODO: remove T: Eq
