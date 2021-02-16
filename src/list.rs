@@ -188,17 +188,6 @@ impl<T, A: Ord + Clone> List<T, A> {
         })
     }
 
-    /// Perform a local deletion at `ix`. If `ix` is out of bounds
-    /// then the last element will be deleted, i.e. `self.len() - 1`.
-    pub fn delete_index_or_last(&mut self, ix: usize, actor: A) -> Op<T, A> {
-        match self.delete_index(ix, actor.clone()) {
-            None => self
-                .delete_index(self.len() - 1, actor)
-                .expect("delete_index_or_last: 'self.len() - 1'"),
-            Some(op) => op,
-        }
-    }
-
     /// Get the length of the List.
     pub fn len(&self) -> usize {
         self.seq.len()
