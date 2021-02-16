@@ -70,15 +70,6 @@ impl<A: Ord> Ord for Index<A> {
     }
 }
 
-/// An `Entry` to the LSEQ consists of:
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Entry<T, A> {
-    /// The index of the entry.
-    pub index: Index<A>,
-    /// The element for the entry.
-    pub val: T,
-}
-
 /// As described in the module documentation:
 ///
 /// An LSEQ tree is a CRDT for storing sequences of data (Strings, ordered lists).
@@ -220,7 +211,7 @@ impl<T, A: Ord + Clone> LSeq<T, A> {
         self.seq.values()
     }
 
-    /// Get the elements' Entry from the LSEQ.
+    /// Get each elements index and value from the LSEQ.
     pub fn iter_entries(&self) -> impl Iterator<Item = (&Index<A>, &T)> {
         self.seq.iter()
     }
@@ -230,7 +221,7 @@ impl<T, A: Ord + Clone> LSeq<T, A> {
         self.iter().nth(ix)
     }
 
-    /// Finds an elemetn by its Index.
+    /// Finds an element by its Index.
     pub fn get(&self, index: &Index<A>) -> Option<&T> {
         self.seq.get(index)
     }
