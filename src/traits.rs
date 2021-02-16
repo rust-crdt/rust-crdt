@@ -45,16 +45,16 @@ pub trait CmRDT {
     /// order over all ops.
     /// E.g.
     ///
-    /// Actor A produces ops A1, A2
-    /// Actor B produces ops B1, B2
+    /// * Actor A produces ops A1, A2
+    /// * Actor B produces ops B1, B2
     ///
     /// the only valid orderings are:
-    /// A1 < A2 < B1 < B2
-    /// A1 < B1 < A2 < B2
-    /// B1 < A1 < A2 < B2
-    /// A1 < B1 < B2 < A2
-    /// B1 < A1 < B2 < A2
-    /// B1 < B2 < A1 < A2
+    /// * A1 < A2 < B1 < B2
+    /// * A1 < B1 < A2 < B2
+    /// * B1 < A1 < A2 < B2
+    /// * A1 < B1 < B2 < A2
+    /// * B1 < A1 < B2 < A2
+    /// * B1 < B2 < A1 < A2
     ///
     /// Applying ops in any of the valid orders will converge to the same CRDT state
     ///
