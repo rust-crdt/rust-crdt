@@ -41,8 +41,8 @@
 //! Montreal, Quebec, Canada, Jun. 2009, pp. 404–412, doi: 10.1109/ICDCS.2009.75.
 
 use core::cmp::Ordering;
+use core::fmt;
 use std::collections::BTreeMap;
-use std::fmt;
 
 use num::{BigRational, One, Zero};
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,7 @@ use crate::{CmRDT, Dot, VClock};
 /// Contains the implementation of the exponential tree for List
 
 /// A unique identifier for an element in the sequence.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Identifier<A> {
     /// The id is the main ordering component of the Identifier.
     pub id: BigRational,
@@ -77,12 +77,18 @@ impl<A: Ord> Ord for Identifier<A> {
     }
 }
 
+impl<A: fmt::Debug> fmt::Debug for Identifier<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}@{:?}", self.id, self.dot)
+    }
+}
+
 /// As described in the module documentation:
 ///
 /// An List tree is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct List<T, A: Ord> {
     seq: BTreeMap<Identifier<A>, T>,
     clock: VClock<A>,
@@ -139,9 +145,9 @@ impl<T, A: Ord + Clone> List<T, A> {
         Self::default()
     }
 
-    /// Perform a local insertion of an element at a given position.
+    /// Generate an op to insert the given element at the given index.
     /// If `ix` is greater than the length of the List then it is appended to the end.
-    pub fn insert_index(&mut self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
+    pub fn insert_index(&self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
         ix = ix.min(self.seq.len());
         let zero = BigRational::zero();
         let one = BigRational::one();
@@ -171,17 +177,16 @@ impl<T, A: Ord + Clone> List<T, A> {
         Op::Insert { id, val }
     }
 
-    /// Perform a local insertion of an element at the end of the sequence.
-    pub fn append(&mut self, c: T, actor: A) -> Op<T, A> {
+    /// Create an op to insert an element at the end of the sequence.
+    pub fn append(&self, c: T, actor: A) -> Op<T, A> {
         let ix = self.seq.len();
         self.insert_index(ix, c, actor)
     }
 
-    /// Perform a local deletion at `ix`.
+    /// Create an op to delete the element at the given index.
     ///
-    /// If `ix` is out of bounds, i.e. `ix > self.len()`, then
-    /// the `Op` is not performed and `None` is returned.
-    pub fn delete_index(&mut self, ix: usize, actor: A) -> Option<Op<T, A>> {
+    /// Returns None if `ix` is out of bounds, i.e. `ix > self.len()`.
+    pub fn delete_index(&self, ix: usize, actor: A) -> Option<Op<T, A>> {
         self.seq.keys().nth(ix).cloned().map(|id| {
             let dot = self.clock.inc(actor);
             Op::Delete { id, dot }
