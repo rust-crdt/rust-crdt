@@ -12,16 +12,16 @@
 //! assert!(a > b);
 //! ```
 
-use std::cmp::{self, Ordering};
+use core::cmp::{self, Ordering};
+use core::convert::Infallible;
+use core::fmt::{self, Debug, Display};
+use core::mem;
 use std::collections::{btree_map, BTreeMap};
-use std::fmt::{self, Debug, Display};
-use std::hash::Hash;
-use std::mem;
 
 use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
-use crate::{traits::VacuousValidation, CmRDT, CvRDT, Dot, DotRange, ResetRemove};
+use crate::{CmRDT, CvRDT, Dot, DotRange, ResetRemove};
 
 /// A `VClock` is a standard vector clock.
 /// It contains a set of "actors" and associated counters.
@@ -130,7 +130,7 @@ impl<A: Ord + Clone + Debug> CmRDT for VClock<A> {
 }
 
 impl<A: Ord + Clone + Debug> CvRDT for VClock<A> {
-    type Validation = VacuousValidation;
+    type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
         Ok(())

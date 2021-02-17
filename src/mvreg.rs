@@ -1,11 +1,12 @@
-use std::cmp::Ordering;
-use std::fmt::{self, Display};
-use std::mem;
+use core::cmp::Ordering;
+use core::convert::Infallible;
+use core::fmt::{self, Debug, Display};
+use core::mem;
 
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx};
-use crate::{traits::VacuousValidation, CmRDT, CvRDT, ResetRemove, VClock};
+use crate::{CmRDT, CvRDT, ResetRemove, VClock};
 
 /// MVReg (Multi-Value Register)
 /// On concurrent writes, we will keep all values for which
@@ -107,7 +108,7 @@ impl<V, A: Ord> Default for MVReg<V, A> {
 }
 
 impl<V, A: Ord> CvRDT for MVReg<V, A> {
-    type Validation = VacuousValidation;
+    type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
         Ok(())
@@ -132,7 +133,7 @@ impl<V, A: Ord> CvRDT for MVReg<V, A> {
 
 impl<V, A: Ord> CmRDT for MVReg<V, A> {
     type Op = Op<V, A>;
-    type Validation = VacuousValidation;
+    type Validation = Infallible;
 
     fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
         Ok(())
@@ -174,7 +175,7 @@ impl<V, A: Ord> CmRDT for MVReg<V, A> {
     }
 }
 
-impl<V, A: Ord + Clone + fmt::Debug> MVReg<V, A> {
+impl<V, A: Ord + Clone + Debug> MVReg<V, A> {
     /// Construct a new empty MVReg
     pub fn new() -> Self {
         Default::default()

@@ -3,16 +3,6 @@ use std::hash::Hash;
 
 use crate::VClock;
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct VacuousValidation();
-
-impl std::fmt::Display for VacuousValidation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self, f)
-    }
-}
-impl std::error::Error for VacuousValidation {}
-
 /// Common Actor type. Actors are unique identifier for every `thing` mutating a VClock.
 /// VClock based CRDT's will need to expose this Actor type to the user.
 pub trait Actor: Ord + Clone + Hash {}

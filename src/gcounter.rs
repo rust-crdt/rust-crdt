@@ -1,8 +1,10 @@
+use core::convert::Infallible;
+use core::fmt::Debug;
+
 use num::bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 
-use crate::{traits::VacuousValidation, CmRDT, CvRDT, Dot, ResetRemove, VClock};
+use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// `GCounter` is a grow-only witnessed counter.
 ///
@@ -37,7 +39,7 @@ impl<A: Ord> Default for GCounter<A> {
 
 impl<A: Ord + Clone + Debug> CmRDT for GCounter<A> {
     type Op = Dot<A>;
-    type Validation = VacuousValidation;
+    type Validation = Infallible;
 
     fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
         Ok(())
@@ -49,7 +51,7 @@ impl<A: Ord + Clone + Debug> CmRDT for GCounter<A> {
 }
 
 impl<A: Ord + Clone + Debug> CvRDT for GCounter<A> {
-    type Validation = VacuousValidation;
+    type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
         Ok(())
