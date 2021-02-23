@@ -1,4 +1,4 @@
-//! # GList
+//! # GList - Grow-only List CRDT
 
 use core::convert::Infallible;
 use core::fmt;
@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CmRDT, CvRDT};
 
-/// Contains the implementation of the exponential tree for List
-
-/// A unique identifier for an element in the sequence.
+/// Markers provide the main ordering component of our list.
+/// Entries in the list are ordered by lexigraphic order
+/// of (marker, elem). Elements themselves are tie-breakers
+/// in the case of conflicting markers.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Marker(BigRational);
 
