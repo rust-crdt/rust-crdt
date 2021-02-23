@@ -1,6 +1,5 @@
 use crdts::glist::{GList, Marker, Op};
 use crdts::{CmRDT, CvRDT};
-use num::BigRational;
 use quickcheck_macros::quickcheck;
 
 #[test]
@@ -41,20 +40,20 @@ fn prop_ops_commute(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>) {
     let mut glist_a = GList::new();
     let mut glist_b = GList::new();
 
-    for op in ops_a.clone().into_iter() {
+    for op in ops_a.clone() {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }
-    for op in ops_b.clone().into_iter() {
+    for op in ops_b.clone() {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op)
     }
     // Deliver the ops to each other
-    for op in ops_a.into_iter() {
+    for op in ops_a {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op)
     }
-    for op in ops_b.into_iter() {
+    for op in ops_b {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }
@@ -68,41 +67,41 @@ fn prop_ops_are_associative(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>, ops_c: Vec<O
     let mut glist_b = GList::new();
     let mut glist_c = GList::new();
 
-    for op in ops_a.clone().into_iter() {
+    for op in ops_a.clone() {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op);
     }
-    for op in ops_b.clone().into_iter() {
+    for op in ops_b.clone() {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op);
     }
-    for op in ops_c.clone().into_iter() {
+    for op in ops_c.clone() {
         assert!(glist_c.validate_op(&op).is_ok());
         glist_c.apply(op);
     }
 
     // a * b
-    let mut glist_ab = glist_a.clone();
-    for op in ops_b.clone().into_iter() {
+    let mut glist_ab = glist_a;
+    for op in ops_b.clone() {
         assert!(glist_ab.validate_op(&op).is_ok());
         glist_ab.apply(op);
     }
 
     // b * c
-    let mut glist_bc = glist_b.clone();
-    for op in ops_c.clone().into_iter() {
+    let mut glist_bc = glist_b;
+    for op in ops_c.clone() {
         assert!(glist_bc.validate_op(&op).is_ok());
         glist_bc.apply(op);
     }
 
     // (a * b) * c
-    for op in ops_c.into_iter() {
+    for op in ops_c {
         assert!(glist_ab.validate_op(&op).is_ok());
         glist_ab.apply(op)
     }
 
     // a * (b * c)
-    for op in ops_a.into_iter() {
+    for op in ops_a {
         assert!(glist_bc.validate_op(&op).is_ok());
         glist_bc.apply(op)
     }
@@ -115,11 +114,11 @@ fn prop_merge_commute(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>) {
     let mut glist_a = GList::new();
     let mut glist_b = GList::new();
 
-    for op in ops_a.clone().into_iter() {
+    for op in ops_a.clone() {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }
-    for op in ops_b.clone().into_iter() {
+    for op in ops_b.clone() {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op)
     }
@@ -137,15 +136,15 @@ fn prop_merge_associative(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>, ops_c: Vec<Op<
     let mut glist_b = GList::new();
     let mut glist_c = GList::new();
 
-    for op in ops_a.clone().into_iter() {
+    for op in ops_a.clone() {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }
-    for op in ops_b.clone().into_iter() {
+    for op in ops_b {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op)
     }
-    for op in ops_c.clone().into_iter() {
+    for op in ops_c {
         assert!(glist_c.validate_op(&op).is_ok());
         glist_c.apply(op)
     }
@@ -156,9 +155,9 @@ fn prop_merge_associative(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>, ops_c: Vec<Op<
     glist_ab_first.merge(glist_c.clone());
 
     // a * (b * c)
-    let mut glist_bc_first = glist_b.clone();
-    glist_bc_first.merge(glist_c.clone());
-    glist_bc_first.merge(glist_a.clone());
+    let mut glist_bc_first = glist_b;
+    glist_bc_first.merge(glist_c);
+    glist_bc_first.merge(glist_a);
 
     assert_eq!(glist_ab_first, glist_bc_first);
 }
@@ -177,16 +176,16 @@ fn prop_validate_against_vec_model(plan: Vec<(usize, u8, bool)>) {
         match instruction {
             (index, elem, true) => {
                 // insert before
-                model.insert(index, elem.clone());
+                model.insert(index, elem);
                 let op = glist.insert_before(glist.get(index).map(|(marker, _)| marker), elem);
                 glist.apply(op);
             }
             (index, elem, false) => {
                 // insert after
-                if index + 1 == model.len() || model.len() == 0 {
-                    model.push(elem.clone())
+                if index + 1 == model.len() || model.is_empty() {
+                    model.push(elem)
                 } else {
-                    model.insert(index + 1, elem.clone());
+                    model.insert(index + 1, elem);
                 }
                 let op = glist.insert_after(glist.get(index).map(|(marker, _)| marker), elem);
                 glist.apply(op);

@@ -166,11 +166,7 @@ fn test_reapply_list_ops() {
         site2.apply(insert_op.clone());
         site2.apply(insert_op.clone());
 
-        let delete_op = site2.delete_index(ix, 1).expect(&format!(
-            "ixxxx@{} was out of bounds@{}",
-            ix,
-            site2.len()
-        ));
+        let delete_op = site2.delete_index(ix, 1).unwrap();
         // apply op a coupel of times
         site2.apply(delete_op.clone());
         site2.apply(delete_op.clone());
@@ -215,11 +211,7 @@ fn test_insert_followed_by_deletes() {
         site1.apply(insert_op.clone());
         site2.apply(insert_op);
 
-        let delete_op = site2.delete_index(ix, 1).expect(&format!(
-            "ix@{} was out of bounds@{}",
-            ix,
-            site2.len()
-        ));
+        let delete_op = site2.delete_index(ix, 1).unwrap();
         site2.apply(delete_op.clone());
         site1.apply(delete_op);
     }
