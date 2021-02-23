@@ -110,7 +110,8 @@ impl<T: Ord + Clone> GList<T> {
             self.list
                 .range((Unbounded, Excluded((high_marker.clone(), elem.clone()))))
                 .rev()
-                .find(|(marker, _)| marker < &high_marker)
+                .map(|(marker, _)| marker)
+                .find(|marker| marker < &high_marker)
         });
         let marker = Marker::between(low_marker_opt, high_marker_opt);
         Op::Insert { marker, elem }
@@ -121,7 +122,8 @@ impl<T: Ord + Clone> GList<T> {
         let high_marker_opt = low_marker_opt.and_then(|low_marker| {
             self.list
                 .range((Excluded((low_marker.clone(), elem.clone())), Unbounded))
-                .find(|(marker, _)| marker > &low_marker)
+                .map(|(marker, _)| marker)
+                .find(|marker| marker > &low_marker)
         });
         let marker = Marker::between(low_marker_opt, high_marker_opt);
         Op::Insert { marker, elem }
