@@ -3,6 +3,7 @@ extern crate quickcheck;
 
 extern crate crdts;
 
+mod glist;
 mod list;
 mod map;
 mod mvreg;

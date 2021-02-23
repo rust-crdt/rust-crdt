@@ -34,6 +34,9 @@ pub mod gcounter;
 /// This module contains a Grow-only Set.
 pub mod gset;
 
+/// This module contains a Grow-only List.
+pub mod glist;
+
 /// This module contains a Positive-Negative Counter.
 pub mod pncounter;
 
