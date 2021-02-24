@@ -148,6 +148,13 @@ impl<T: Ord + Clone> GList<T> {
     pub fn last(&self) -> Option<&(Marker, T)> {
         self.iter().rev().next()
     }
+
+    /// Generate an insert op to insert the given element at the end of the list
+    /// as per currently known markers seen by this replica.
+    pub fn apppend(&self, elem: T) -> Op<T> {
+        let last = self.last().map(|(marker, _)| marker);
+        self.insert_after(last, elem)
+    }
 }
 
 impl<T: Ord> CmRDT for GList<T> {
