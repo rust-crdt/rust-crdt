@@ -19,6 +19,9 @@ pub mod lwwreg;
 /// This module contains a Multi-Value Register.
 pub mod mvreg;
 
+/// This module contains a Merkle-Dag Register.
+pub mod merkle_reg;
+
 /// This module contains the Vector Clock
 pub mod vclock;
 
