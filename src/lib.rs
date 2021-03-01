@@ -57,8 +57,9 @@ pub mod vvwe;
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
-    dot::Dot, dot::DotRange, gcounter::GCounter, gset::GSet, identifier::Identifier,
-    lwwreg::LWWReg, map::Map, mvreg::MVReg, orswot::Orswot, pncounter::PNCounter, vclock::VClock,
+    dot::Dot, dot::DotRange, dot::OrdDot, gcounter::GCounter, gset::GSet, identifier::Identifier,
+    list::List, lwwreg::LWWReg, map::Map, mvreg::MVReg, orswot::Orswot, pncounter::PNCounter,
+    vclock::VClock,
 };
 
 /// A re-export of the quickcheck crate for use in property based testing of user code

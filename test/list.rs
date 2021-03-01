@@ -1,6 +1,5 @@
-use crdts::list::{Identifier, List, Op};
+use crdts::list::{List, Op};
 use crdts::CmRDT;
-use num::BigRational;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
@@ -102,6 +101,29 @@ fn test_out_of_order_inserts() {
     let site1_items = site1.iter().collect::<String>();
     assert_eq!(site1_items, "abc");
     assert_eq!(site1_items, site2.iter().collect::<String>());
+}
+
+#[test]
+fn test_concurrent_inserts_with_same_identifier_can_be_split() {
+    let mut list_a = List::new();
+    let mut list_b = List::new();
+    let mut list_c = List::new();
+
+    let op_a = list_a.insert_index(0, 'a', 'A');
+    let op_b = list_b.insert_index(0, 'b', 'B');
+
+    list_a.apply(op_a.clone());
+    list_a.apply(op_b.clone());
+    list_b.apply(op_a.clone());
+    list_b.apply(op_b.clone());
+    list_c.apply(op_a);
+    list_c.apply(op_b);
+
+    assert_eq!(list_a.read::<String>(), "ab");
+    assert_eq!(list_b.read::<String>(), "ab");
+    assert_eq!(list_c.read::<String>(), "ab");
+    list_c.apply(list_c.insert_index(1, 'c', 'C'));
+    assert_eq!(list_c.read::<String>(), "acb");
 }
 
 #[test]
@@ -280,68 +302,6 @@ fn test_deep_inserts() {
     }
     assert_eq!(site.len(), n);
     assert_eq!(site.iter().cloned().collect::<Vec<_>>(), vec);
-}
-
-#[quickcheck]
-fn prop_entry_ord_is_transitive(
-    a: (Vec<(i64, i64)>, (u8, u64)),
-    b: (Vec<(i64, i64)>, (u8, u64)),
-    c: (Vec<(i64, i64)>, (u8, u64)),
-) -> bool {
-    let (a_id_material, a_dot_material) = a;
-    let (b_id_material, b_dot_material) = b;
-    let (c_id_material, c_dot_material) = c;
-    let a_index = Identifier {
-        id: a_id_material
-            .into_iter()
-            .map(|(n, d)| {
-                if d != 0 {
-                    BigRational::new(n.into(), d.into())
-                } else {
-                    BigRational::from_integer(n.into())
-                }
-            })
-            .sum(),
-        dot: a_dot_material.into(),
-    };
-    let b_index = Identifier {
-        id: b_id_material
-            .into_iter()
-            .map(|(n, d)| {
-                if d != 0 {
-                    BigRational::new(n.into(), d.into())
-                } else {
-                    BigRational::from_integer(n.into())
-                }
-            })
-            .sum(),
-        dot: b_dot_material.into(),
-    };
-    let c_index = Identifier {
-        id: c_id_material
-            .into_iter()
-            .map(|(n, d)| {
-                if d != 0 {
-                    BigRational::new(n.into(), d.into())
-                } else {
-                    BigRational::from_integer(n.into())
-                }
-            })
-            .sum(),
-        dot: c_dot_material.into(),
-    };
-
-    let a_b_ord = a_index.cmp(&b_index);
-    let a_c_ord = a_index.cmp(&c_index);
-    let b_c_ord = b_index.cmp(&c_index);
-
-    if a_b_ord == b_c_ord {
-        assert_eq!(a_b_ord, a_c_ord);
-    }
-    if a_index == b_index {
-        assert_eq!(a_c_ord, b_c_ord);
-    }
-    true
 }
 
 #[quickcheck]

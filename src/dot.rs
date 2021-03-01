@@ -93,6 +93,28 @@ impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
     }
 }
 
+/// An ordered dot.
+/// dot's are first ordered by actor, dots from the same actor are ordered by counter.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct OrdDot<A: Ord> {
+    /// The actor who created this dot.
+    pub actor: A,
+    /// The current counter of this actor.
+    pub counter: u64,
+}
+
+impl<A: Ord> From<OrdDot<A>> for Dot<A> {
+    fn from(OrdDot { actor, counter }: OrdDot<A>) -> Self {
+        Self { actor, counter }
+    }
+}
+
+impl<A: Ord> From<Dot<A>> for OrdDot<A> {
+    fn from(Dot { actor, counter }: Dot<A>) -> Self {
+        Self { actor, counter }
+    }
+}
+
 /// A type for modeling a range of Dot's from one actor.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DotRange<A> {
@@ -120,23 +142,43 @@ impl<A: fmt::Debug> std::error::Error for DotRange<A> {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use quickcheck::quickcheck;
+    use quickcheck_macros::quickcheck;
 
-    quickcheck! {
-        fn inc_increments_only_the_counter(dot: Dot<u8>) -> bool {
-            dot.inc() == Dot::new(dot.actor, dot.counter + 1)
+    #[quickcheck]
+    fn prop_inc_increments_only_the_counter(dot: Dot<u8>) -> bool {
+        dot.inc() == Dot::new(dot.actor, dot.counter + 1)
+    }
+
+    #[quickcheck]
+    fn prop_partial_order(a: Dot<u8>, b: Dot<u8>) -> bool {
+        let cmp_ab = a.partial_cmp(&b);
+        let cmp_ba = b.partial_cmp(&a);
+
+        match (cmp_ab, cmp_ba) {
+            (None, None) => a.actor != b.actor,
+            (Some(Ordering::Less), Some(Ordering::Greater)) => {
+                a.actor == b.actor && a.counter < b.counter
+            }
+            (Some(Ordering::Greater), Some(Ordering::Less)) => {
+                a.actor == b.actor && a.counter > b.counter
+            }
+            (Some(Ordering::Equal), Some(Ordering::Equal)) => {
+                a.actor == b.actor && a.counter == b.counter
+            }
+            _ => false,
         }
+    }
 
-        fn test_partial_order(a: Dot<u8>, b: Dot<u8>) -> bool {
-            let cmp_ab = a.partial_cmp(&b);
-            let cmp_ba = b.partial_cmp(&a);
+    #[quickcheck]
+    fn prop_ordered_dot_is_ordered_by_actor_first(dot_a: Dot<u8>, dot_b: Dot<u8>) -> bool {
+        let ord_dot_a: OrdDot<_> = dot_a.into();
+        let ord_dot_b: OrdDot<_> = dot_b.into();
 
-            match (cmp_ab, cmp_ba) {
-                (None, None) => a.actor != b.actor,
-                (Some(Ordering::Less), Some(Ordering::Greater)) => a.actor == b.actor && a.counter < b.counter,
-                (Some(Ordering::Greater), Some(Ordering::Less)) => a.actor == b.actor && a.counter > b.counter,
-                (Some(Ordering::Equal), Some(Ordering::Equal)) => a.actor == b.actor && a.counter == b.counter,
-                _ => false
+        match ord_dot_a.actor.cmp(&ord_dot_b.actor) {
+            Ordering::Less => ord_dot_a < ord_dot_b,
+            Ordering::Greater => ord_dot_a > ord_dot_b,
+            Ordering::Equal => {
+                ord_dot_a.counter.cmp(&ord_dot_b.counter) == ord_dot_a.cmp(&ord_dot_b)
             }
         }
     }

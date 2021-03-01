@@ -40,92 +40,57 @@
 //! in 2009 29th IEEE International Conference on Distributed Computing Systems,
 //! Montreal, Quebec, Canada, Jun. 2009, pp. 404–412, doi: 10.1109/ICDCS.2009.75.
 
-use core::cmp::Ordering;
 use core::fmt;
+use core::iter::FromIterator;
 use std::collections::BTreeMap;
 
-use num::{BigRational, One, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::{CmRDT, Dot, VClock};
-
-/// Contains the implementation of the exponential tree for List
-
-/// A unique identifier for an element in the sequence.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Identifier<A> {
-    /// The id is the main ordering component of the Identifier.
-    pub id: BigRational,
-
-    /// The dot is used to disambiguate Identifiers when the id's are identical.
-    pub dot: Dot<A>,
-}
-
-impl<A: Ord> PartialOrd for Identifier<A> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
-    }
-}
-
-impl<A: Ord> Ord for Identifier<A> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (&self.id, &self.dot.actor, &self.dot.counter).cmp(&(
-            &other.id,
-            &other.dot.actor,
-            &other.dot.counter,
-        ))
-    }
-}
-
-impl<A: fmt::Debug> fmt::Debug for Identifier<A> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{:?}", self.id, self.dot)
-    }
-}
+use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
 
 /// As described in the module documentation:
 ///
-/// An List tree is a CRDT for storing sequences of data (Strings, ordered lists).
+/// A List is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct List<T, A: Ord> {
-    seq: BTreeMap<Identifier<A>, T>,
+    seq: BTreeMap<Identifier<OrdDot<A>>, T>,
     clock: VClock<A>,
 }
 
 /// Operations that can be performed on a List
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Op<T, A> {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Op<T, A: Ord> {
     /// Insert an element
     Insert {
         /// The Identifier to insert at
-        id: Identifier<A>,
+        id: Identifier<OrdDot<A>>,
         /// Element to insert
         val: T,
     },
     /// Delete an element
     Delete {
         /// The Identifier of the insertion we're removing
-        id: Identifier<A>,
+        id: Identifier<OrdDot<A>>,
         /// id of site that issued delete
         dot: Dot<A>,
     },
 }
 
-impl<T, A> Op<T, A> {
+impl<T, A: Ord + Clone + Eq> Op<T, A> {
     /// Returns the Identifier this operation is concerning.
-    pub fn id(&self) -> &Identifier<A> {
+    pub fn id(&self) -> &Identifier<OrdDot<A>> {
         match self {
             Op::Insert { id, .. } | Op::Delete { id, .. } => id,
         }
     }
 
     /// Return the Dot originating the operation.
-    pub fn dot(&self) -> &Dot<A> {
+    pub fn dot(&self) -> Dot<A> {
         match self {
-            Op::Insert { id, .. } => &id.dot,
-            Op::Delete { dot, .. } => dot,
+            Op::Insert { id, .. } => id.value().clone().into(),
+            Op::Delete { dot, .. } => dot.clone(),
         }
     }
 }
@@ -149,10 +114,6 @@ impl<T, A: Ord + Clone> List<T, A> {
     /// If `ix` is greater than the length of the List then it is appended to the end.
     pub fn insert_index(&self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
         ix = ix.min(self.seq.len());
-        let zero = BigRational::zero();
-        let one = BigRational::one();
-        let two = BigRational::from_integer(2.into());
-
         // TODO: replace this logic with BTreeMap::range()
         let (prev, next) = match ix.checked_sub(1) {
             Some(indices_to_drop) => {
@@ -166,14 +127,8 @@ impl<T, A: Ord + Clone> List<T, A> {
             }
         };
 
-        let id = match (prev, next) {
-            (Some(p), Some(q)) => (&p.id + &q.id) / two,
-            (Some(p), None) => &p.id + &one,
-            (None, Some(q)) => &q.id - &one,
-            (None, None) => zero,
-        };
         let dot = self.clock.inc(actor);
-        let id = Identifier { id, dot };
+        let id = Identifier::between(prev, next, dot.into());
         Op::Insert { id, val }
     }
 
@@ -203,13 +158,43 @@ impl<T, A: Ord + Clone> List<T, A> {
         self.seq.is_empty()
     }
 
+    /// Read the List into a container of your choice
+    ///
+    /// ```rust
+    /// use crdts::{List, CmRDT};
+    ///
+    /// let mut list = List::new();
+    /// list.apply(list.append('a', 'A'));
+    /// list.apply(list.append('b', 'A'));
+    /// list.apply(list.append('c', 'A'));
+    /// assert_eq!(list.read::<String>(), "abc");
+    /// ```
+    pub fn read<'a, C: FromIterator<&'a T>>(&'a self) -> C {
+        self.seq.values().collect()
+    }
+
+    /// Read the List into a container of your choice, consuming it.
+    ///
+    /// ```rust
+    /// use crdts::{List, CmRDT};
+    ///
+    /// let mut list = List::new();
+    /// list.apply(list.append(1, 'A'));
+    /// list.apply(list.append(2, 'A'));
+    /// list.apply(list.append(3, 'A'));
+    /// assert_eq!(list.read_into::<Vec<_>>(), vec![1, 2, 3]);
+    /// ```
+    pub fn read_into<C: FromIterator<T>>(self) -> C {
+        self.seq.into_iter().map(|(_, v)| v).collect()
+    }
+
     /// Get the elements represented by the List.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.seq.values()
     }
 
     /// Get each elements identifier and value from the List.
-    pub fn iter_entries(&self) -> impl Iterator<Item = (&Identifier<A>, &T)> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&Identifier<OrdDot<A>>, &T)> {
         self.seq.iter()
     }
 
@@ -219,7 +204,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Finds an element by its Identifier.
-    pub fn get(&self, id: &Identifier<A>) -> Option<&T> {
+    pub fn get(&self, id: &Identifier<OrdDot<A>>) -> Option<&T> {
         self.seq.get(id)
     }
 
@@ -229,7 +214,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Get the first Entry of the sequence represented by the List.
-    pub fn first_entry(&self) -> Option<(&Identifier<A>, &T)> {
+    pub fn first_entry(&self) -> Option<(&Identifier<OrdDot<A>>, &T)> {
         self.seq.iter().next()
     }
 
@@ -239,18 +224,18 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Get the last Entry of the sequence represented by the List.
-    pub fn last_entry(&self) -> Option<(&Identifier<A>, &T)> {
+    pub fn last_entry(&self) -> Option<(&Identifier<OrdDot<A>>, &T)> {
         self.seq.iter().rev().next()
     }
 
     /// Insert value with at the given identifier in the List
-    fn insert(&mut self, id: Identifier<A>, val: T) {
+    fn insert(&mut self, id: Identifier<OrdDot<A>>, val: T) {
         // Inserts only have an impact if the identifier is not in the tree
         self.seq.entry(id).or_insert(val);
     }
 
     /// Remove the element with the given identifier from the List
-    fn delete(&mut self, id: &Identifier<A>) {
+    fn delete(&mut self, id: &Identifier<OrdDot<A>>) {
         // Deletes only have an effect if the identifier is already in the tree
         self.seq.remove(id);
     }
@@ -261,7 +246,7 @@ impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
     type Validation = crate::DotRange<A>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        self.clock.validate_op(op.dot())
+        self.clock.validate_op(&op.dot())
     }
 
     /// Apply an operation to an List instance.
@@ -272,7 +257,7 @@ impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
     /// If the operation is a delete and the identifier is **not** present in the List instance the
     /// result is a no-op
     fn apply(&mut self, op: Self::Op) {
-        let op_dot = op.dot().clone();
+        let op_dot = op.dot();
 
         if op_dot.counter <= self.clock.get(&op_dot.actor) {
             return;

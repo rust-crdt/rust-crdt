@@ -1,8 +1,7 @@
 use num::BigRational;
 
-use crdts::glist::{Entry, GList, Op};
-use crdts::{CmRDT, CvRDT};
-use quickcheck::TestResult;
+use crdts::glist::{GList, Op};
+use crdts::{CmRDT, CvRDT, Identifier};
 use quickcheck_macros::quickcheck;
 
 #[test]
@@ -33,9 +32,9 @@ fn test_append_increments_entry() {
     glist.apply(glist.insert_after(glist.last(), 'c'));
     assert_eq!(
         vec![
-            Entry(vec![(BigRational::from_integer(0.into()), 'a')]),
-            Entry(vec![(BigRational::from_integer(1.into()), 'b')]),
-            Entry(vec![(BigRational::from_integer(2.into()), 'c')]),
+            Identifier::from((BigRational::from_integer(0.into()), 'a')),
+            Identifier::from((BigRational::from_integer(1.into()), 'b')),
+            Identifier::from((BigRational::from_integer(2.into()), 'c')),
         ],
         glist.iter().cloned().collect::<Vec<_>>()
     );
@@ -215,21 +214,4 @@ fn prop_validate_against_vec_model(plan: Vec<(usize, u8, bool)>) {
         }
     }
     assert_eq!(model, glist.read_into::<Vec<u8>>());
-}
-
-#[quickcheck]
-fn entry_is_dense(entry_a: Entry<u8>, entry_b: Entry<u8>, elem: u8) -> TestResult {
-    if entry_a.0.is_empty() || entry_b.0.is_empty() {
-        return TestResult::discard();
-    }
-    let (entry_min, entry_max) = if entry_a < entry_b {
-        (entry_a, entry_b)
-    } else {
-        (entry_b, entry_a)
-    };
-
-    let entry_mid = Entry::between(Some(&entry_min), Some(&entry_max), elem);
-    assert!(entry_min < entry_mid);
-    assert!(entry_mid < entry_max);
-    TestResult::passed()
 }

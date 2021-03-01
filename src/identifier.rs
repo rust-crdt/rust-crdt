@@ -26,7 +26,13 @@ fn rational_between(low: Option<&BigRational>, high: Option<&BigRational>) -> Bi
 /// A dense Identifier, if you have two identifiers that are different, we can
 /// always construct an identifier between them.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Identifier<T>(pub Vec<(BigRational, T)>);
+pub struct Identifier<T>(Vec<(BigRational, T)>);
+
+impl<T> From<(BigRational, T)> for Identifier<T> {
+    fn from((rational, value): (BigRational, T)) -> Self {
+        Self(vec![(rational, value)])
+    }
+}
 
 impl<T: Clone + Eq> Identifier<T> {
     /// Get a reference to the value this entry represents.
@@ -52,7 +58,7 @@ impl<T: Clone + Eq> Identifier<T> {
                 let mut lower_bound = None;
                 let mut upper_bound = None;
                 for (l, h) in low_path.zip(high_path) {
-                    if &l.0 == &h.0 {
+                    if l.0 == h.0 {
                         // The entry between low and high will share the common path between these two
                         // entries. We accumulate this common prefix path as we traverse.
                         path.push(l)
@@ -117,7 +123,7 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, elem: u8) -> TestResult {
+    fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, elem: u8) -> TestResult {
         if id_a.0.is_empty() || id_b.0.is_empty() {
             return TestResult::discard();
         }
@@ -133,6 +139,21 @@ mod tests {
         TestResult::passed()
     }
 
+    #[quickcheck]
+    fn prop_id_ord_is_transitive(id_a: Identifier<u8>, id_b: Identifier<u8>, id_c: Identifier<u8>) {
+        let a_b_ord = id_a.cmp(&id_b);
+        let a_c_ord = id_a.cmp(&id_c);
+        let b_c_ord = id_b.cmp(&id_c);
+
+        if a_b_ord == b_c_ord {
+            assert_eq!(a_b_ord, a_c_ord);
+        }
+        if id_a == id_b {
+            assert_eq!(a_c_ord, b_c_ord);
+        }
+    }
+
+    #[ignore]
     #[test]
     fn test_id_is_dense() {
         let id_a = Identifier(vec![(BigRational::from_integer((-1000).into()), 65)]);
