@@ -25,6 +25,9 @@ pub mod vclock;
 /// This module contains the Dot (Actor + Sequence Number)
 pub mod dot;
 
+/// This module contains a dense Identifier.
+pub mod identifier;
+
 /// This module contains an Observed-Remove Set With Out Tombstones.
 pub mod orswot;
 
@@ -54,8 +57,8 @@ pub mod vvwe;
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
-    dot::Dot, dot::DotRange, gcounter::GCounter, gset::GSet, lwwreg::LWWReg, map::Map,
-    mvreg::MVReg, orswot::Orswot, pncounter::PNCounter, vclock::VClock,
+    dot::Dot, dot::DotRange, gcounter::GCounter, gset::GSet, identifier::Identifier,
+    lwwreg::LWWReg, map::Map, mvreg::MVReg, orswot::Orswot, pncounter::PNCounter, vclock::VClock,
 };
 
 /// A re-export of the quickcheck crate for use in property based testing of user code
