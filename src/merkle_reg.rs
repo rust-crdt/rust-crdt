@@ -32,6 +32,35 @@ impl<T: Sha3Hash> Node<T> {
     }
 }
 
+/// The contents of a MerkleReg.
+///
+/// Usually this is retrieved through a call to `MerkleReg::read`
+pub struct Content<T> {
+    hashes_and_values: BTreeMap<Hash, T>,
+}
+
+impl<T> Content<T> {
+    /// Checks if the contents is empty
+    pub fn is_empty(&self) -> bool {
+        self.hashes_and_values.is_empty()
+    }
+
+    /// Iterate over the content values
+    pub fn values(&self) -> impl Iterator<Item = &T> {
+        self.hashes_and_values.values()
+    }
+
+    /// Iterate over the hashes of the content values.
+    pub fn hashes(&self) -> BTreeSet<Hash> {
+        self.hashes_and_values.keys().copied().collect()
+    }
+
+    /// The concurrent hashes and values stored in the register
+    pub fn hashes_and_values(&self) -> &BTreeMap<Hash, T> {
+        &self.hashes_and_values
+    }
+}
+
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
@@ -59,12 +88,15 @@ impl<T> MerkleReg<T> {
     }
 
     /// Read the current values held by the register
-    pub fn read(&self) -> BTreeMap<Hash, &T> {
-        self.leaves
-            .iter()
-            .copied()
-            .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, &node.value)))
-            .collect()
+    pub fn read(&self) -> Content<&T> {
+        Content {
+            hashes_and_values: self
+                .leaves
+                .iter()
+                .copied()
+                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, &node.value)))
+                .collect(),
+        }
     }
 
     /// Write the given value on top of the given parents.

@@ -13,16 +13,13 @@ fn test_write_resolves_fork() {
     reg.apply(reg.write("b", Default::default()));
 
     let contents = reg.read();
-    assert_eq!(
-        contents.values().cloned().collect::<Vec<_>>(),
-        vec![&"a", &"b"]
-    );
+    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&&"a", &&"b"]);
 
-    let parents = contents.keys().cloned().collect();
+    let parents = contents.hashes();
     reg.apply(reg.write("c", parents));
 
     let contents = reg.read();
-    assert_eq!(contents.values().cloned().collect::<Vec<_>>(), vec![&"c"]);
+    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&&"c"]);
 }
 
 #[test]
@@ -57,7 +54,7 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
     // Once the first node is applied, all other nodes will no longer be orphaned.
     let op_a = ops.pop().unwrap();
     reg.apply(op_a);
-    assert_eq!(reg.read().values().cloned().collect::<Vec<_>>(), vec![&"d"]);
+    assert_eq!(reg.read().values().collect::<Vec<_>>(), vec![&&"d"]);
     assert_eq!(reg.num_orphaned(), 0);
 }
 
