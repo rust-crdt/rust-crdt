@@ -8,13 +8,19 @@ use crate::traits::CmRDT;
 type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<T> {
     parents: BTreeSet<Hash>,
     value: T,
 }
 
 impl<T: Sha3Hash> Node<T> {
-    fn hash(&self) -> Hash {
+    /// Compute the hash name of this node.
+    ///
+    /// hash = sha3_256(parent1 <> parent2 <> .. <> parentN <> value)
+    ///
+    /// Where parents are ordered lexigraphically.
+    pub fn hash(&self) -> Hash {
         let mut sha3 = Sha3::v256();
 
         self.parents.iter().for_each(|p| sha3.update(p));
@@ -29,9 +35,11 @@ impl<T: Sha3Hash> Node<T> {
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
+    orphaned: BTreeMap<Hash, Node<T>>,
 }
 
 impl<T> Default for MerkleReg<T> {
@@ -39,6 +47,7 @@ impl<T> Default for MerkleReg<T> {
         Self {
             leaves: Default::default(),
             dag: Default::default(),
+            orphaned: Default::default(),
         }
     }
 }
@@ -61,6 +70,15 @@ impl<T> MerkleReg<T> {
     /// Write the given value on top of the given parents.
     pub fn write(&self, value: T, parents: BTreeSet<Hash>) -> Node<T> {
         Node { value, parents }
+    }
+
+    /// Returns the number of nodes who are not visible due to missing parents.
+    pub fn num_orphaned(&self) -> usize {
+        self.orphaned.len()
+    }
+
+    fn all_hashes_seen(&self, hashes: &BTreeSet<Hash>) -> bool {
+        hashes.iter().all(|h| self.dag.contains_key(h))
     }
 }
 
@@ -95,16 +113,44 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
 
     fn apply(&mut self, node: Self::Op) {
         let node_hash = node.hash();
-        if self.dag.contains_key(&node_hash) {
+        if self.dag.contains_key(&node_hash) || self.orphaned.contains_key(&node_hash) {
             return;
         }
 
-        for parent in node.parents.iter() {
-            self.leaves.remove(parent);
-        }
+        if self.all_hashes_seen(&node.parents) {
+            // This node will supercede any parents who happen to be leaves.
+            for parent in node.parents.iter() {
+                self.leaves.remove(parent);
+            }
 
-        self.leaves.insert(node_hash);
-        self.dag.insert(node_hash, node);
+            // Since we have never seen this node before, it's guaranteed to be a leaf.
+            self.leaves.insert(node_hash);
+
+            // It's safe to insert this node into the DAG since we've seen all parents already
+            self.dag.insert(node_hash, node);
+
+            // TODO: replace this logic with BTreeMap::drain_filter once it's stable.
+            let hashes_that_are_now_ready_to_apply = self
+                .orphaned
+                .iter()
+                .filter(|(_, node)| self.all_hashes_seen(&node.parents))
+                .map(|(hash, _)| hash)
+                .copied()
+                .collect::<BTreeSet<_>>();
+
+            let mut nodes_to_apply = Vec::new();
+            for hash in hashes_that_are_now_ready_to_apply {
+                if let Some(node) = self.orphaned.remove(&hash) {
+                    nodes_to_apply.push(node);
+                }
+            }
+
+            for node in nodes_to_apply {
+                self.apply(node);
+            }
+        } else {
+            self.orphaned.insert(node_hash, node);
+        }
     }
 }
 
