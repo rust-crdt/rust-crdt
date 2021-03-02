@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crdts::merkle_reg::{MerkleReg, Node};
-use crdts::CmRDT;
+use crdts::{CmRDT, CvRDT};
 
 use quickcheck_macros::quickcheck;
 
@@ -39,23 +39,23 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
     let op_d = ops.pop().unwrap();
     reg.apply(op_d);
     assert!(reg.read().is_empty());
-    assert_eq!(reg.num_orphaned(), 1);
+    assert_eq!(reg.num_orphans(), 1);
 
     let op_c = ops.pop().unwrap();
     reg.apply(op_c);
     assert!(reg.read().is_empty());
-    assert_eq!(reg.num_orphaned(), 2);
+    assert_eq!(reg.num_orphans(), 2);
 
     let op_b = ops.pop().unwrap();
     reg.apply(op_b);
     assert!(reg.read().is_empty());
-    assert_eq!(reg.num_orphaned(), 3);
+    assert_eq!(reg.num_orphans(), 3);
 
     // Once the first node is applied, all other nodes will no longer be orphaned.
     let op_a = ops.pop().unwrap();
     reg.apply(op_a);
     assert_eq!(reg.read().values().collect::<Vec<_>>(), vec![&&"d"]);
-    assert_eq!(reg.num_orphaned(), 0);
+    assert_eq!(reg.num_orphans(), 0);
 }
 
 #[quickcheck]
@@ -94,5 +94,38 @@ fn prop_op_reordering_converges(
     }
 
     assert_eq!(reg, reordered_reg);
-    assert_eq!(reordered_reg.num_orphaned(), 0);
+    assert_eq!(reordered_reg.num_orphans(), 0);
+}
+
+#[quickcheck]
+fn prop_merge_commute(mut reg_a: MerkleReg<String>, mut reg_b: MerkleReg<String>) {
+    let reg_a_snapshot = reg_a.clone();
+
+    // a * b
+    reg_a.merge(reg_b.clone());
+
+    // b * a
+    reg_b.merge(reg_a_snapshot);
+
+    assert_eq!(reg_a, reg_b);
+}
+
+#[quickcheck]
+fn prop_merge_associative(
+    mut reg_a: MerkleReg<String>,
+    mut reg_b: MerkleReg<String>,
+    reg_c: MerkleReg<String>,
+) {
+    let mut reg_a_snapshot = reg_a.clone();
+
+    // (a * b) * c
+    reg_a.merge(reg_b.clone());
+    reg_a.merge(reg_c.clone());
+
+    // a * (b * c)
+    reg_b.merge(reg_c);
+    reg_a_snapshot.merge(reg_b);
+
+    // (a * b) * c == a * (b * c)
+    assert_eq!(reg_a, reg_a_snapshot);
 }

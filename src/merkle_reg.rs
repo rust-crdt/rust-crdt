@@ -1,9 +1,11 @@
+use core::convert::Infallible;
+use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
 
+use quickcheck::{Arbitrary, Gen};
 use tiny_keccak::{Hasher, Sha3};
 
-use crate::traits::CmRDT;
+use crate::traits::{CmRDT, CvRDT};
 
 type Hash = [u8; 32];
 
@@ -68,7 +70,7 @@ impl<T> Content<T> {
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
-    orphaned: BTreeMap<Hash, Node<T>>,
+    orphans: BTreeMap<Hash, Node<T>>,
 }
 
 impl<T> Default for MerkleReg<T> {
@@ -76,7 +78,7 @@ impl<T> Default for MerkleReg<T> {
         Self {
             leaves: Default::default(),
             dag: Default::default(),
-            orphaned: Default::default(),
+            orphans: Default::default(),
         }
     }
 }
@@ -105,8 +107,8 @@ impl<T> MerkleReg<T> {
     }
 
     /// Returns the number of nodes who are not visible due to missing parents.
-    pub fn num_orphaned(&self) -> usize {
-        self.orphaned.len()
+    pub fn num_orphans(&self) -> usize {
+        self.orphans.len()
     }
 
     fn all_hashes_seen(&self, hashes: &BTreeSet<Hash>) -> bool {
@@ -134,7 +136,7 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
     type Op = Node<T>;
     type Validation = ValidationError;
 
-    fn validate_op(&self, op: &Self::Op) -> Result<(), ValidationError> {
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         for parent in op.parents.iter() {
             if !self.dag.contains_key(parent) {
                 return Err(ValidationError::MissingParent(*parent));
@@ -145,7 +147,7 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
 
     fn apply(&mut self, node: Self::Op) {
         let node_hash = node.hash();
-        if self.dag.contains_key(&node_hash) || self.orphaned.contains_key(&node_hash) {
+        if self.dag.contains_key(&node_hash) || self.orphans.contains_key(&node_hash) {
             return;
         }
 
@@ -161,18 +163,22 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
             // It's safe to insert this node into the DAG since we've seen all parents already
             self.dag.insert(node_hash, node);
 
+            // Now check if inserting this node resolves any orphans nodes.
             // TODO: replace this logic with BTreeMap::drain_filter once it's stable.
             let hashes_that_are_now_ready_to_apply = self
-                .orphaned
+                .orphans
                 .iter()
                 .filter(|(_, node)| self.all_hashes_seen(&node.parents))
                 .map(|(hash, _)| hash)
                 .copied()
-                .collect::<BTreeSet<_>>();
+                .collect::<Vec<_>>();
 
             let mut nodes_to_apply = Vec::new();
             for hash in hashes_that_are_now_ready_to_apply {
-                if let Some(node) = self.orphaned.remove(&hash) {
+                // Remove the previously orphaned nodes that are now
+                // ready to apply before we recurse, else we risk an
+                // exponential growth in memory.
+                if let Some(node) = self.orphans.remove(&hash) {
                     nodes_to_apply.push(node);
                 }
             }
@@ -181,7 +187,25 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
                 self.apply(node);
             }
         } else {
-            self.orphaned.insert(node_hash, node);
+            self.orphans.insert(node_hash, node);
+        }
+    }
+}
+
+impl<T: Sha3Hash> CvRDT for MerkleReg<T> {
+    type Validation = Infallible;
+
+    fn validate_merge(&self, _: &Self) -> Result<(), Self::Validation> {
+        Ok(())
+    }
+
+    fn merge(&mut self, other: Self) {
+        let MerkleReg { dag, orphans, .. } = other;
+        for (_, node) in dag {
+            self.apply(node);
+        }
+        for (_, node) in orphans {
+            self.apply(node);
         }
     }
 }
@@ -197,5 +221,29 @@ pub trait Sha3Hash {
 impl<T: AsRef<[u8]>> Sha3Hash for T {
     fn hash(&self, hasher: &mut Sha3) {
         hasher.update(self.as_ref());
+    }
+}
+
+impl<T: Arbitrary + Sha3Hash> Arbitrary for MerkleReg<T> {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        let mut reg = MerkleReg::new();
+        let mut nodes: Vec<Node<_>> = Vec::new();
+
+        let n_nodes = u8::arbitrary(g) % 12;
+        for _ in 0..n_nodes {
+            let value = T::arbitrary(g);
+            let mut parents = BTreeSet::new();
+            if !nodes.is_empty() {
+                let n_parents = u8::arbitrary(g) % 12;
+                for _ in 0..n_parents {
+                    parents.insert(nodes[usize::arbitrary(g) % nodes.len()].hash());
+                }
+            }
+            let op = reg.write(value, parents);
+            nodes.push(op.clone());
+            reg.apply(op)
+        }
+
+        reg
     }
 }
