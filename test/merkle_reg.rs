@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crdts::merkle_reg::{MerkleReg, Node};
+use crdts::merkle_reg::{Hash, MerkleReg, Node};
 use crdts::{CmRDT, CvRDT};
 
 use quickcheck_macros::quickcheck;
@@ -72,22 +72,26 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
     let op_d = ops.pop().unwrap();
     reg.apply(op_d);
     assert!(reg.read().is_empty());
+    assert_eq!(reg.num_nodes(), 0);
     assert_eq!(reg.num_orphans(), 1);
 
     let op_c = ops.pop().unwrap();
     reg.apply(op_c);
     assert!(reg.read().is_empty());
+    assert_eq!(reg.num_nodes(), 0);
     assert_eq!(reg.num_orphans(), 2);
 
     let op_b = ops.pop().unwrap();
     reg.apply(op_b);
     assert!(reg.read().is_empty());
+    assert_eq!(reg.num_nodes(), 0);
     assert_eq!(reg.num_orphans(), 3);
 
     // Once the first node is applied, all other nodes will no longer be orphaned.
     let op_a = ops.pop().unwrap();
     reg.apply(op_a);
     assert_eq!(reg.read().values().collect::<Vec<_>>(), vec![&"d"]);
+    assert_eq!(reg.num_nodes(), 4);
     assert_eq!(reg.num_orphans(), 0);
 }
 
@@ -98,6 +102,7 @@ fn prop_op_reordering_converges(
 ) {
     let mut reg = MerkleReg::new();
     let mut ops: Vec<Node<_>> = Vec::new();
+    let mut unique_nodes: BTreeSet<Hash> = BTreeSet::new();
 
     for writes in concurrent_writes {
         let mut concurrent_ops = Vec::new();
@@ -112,9 +117,12 @@ fn prop_op_reordering_converges(
         }
         for op in concurrent_ops {
             ops.push(op.clone());
+            unique_nodes.insert(op.hash());
             reg.apply(op);
         }
     }
+
+    assert_eq!(reg.num_nodes(), unique_nodes.len());
 
     let mut reordered_reg = MerkleReg::new();
     op_reordering.push(0);
@@ -127,6 +135,7 @@ fn prop_op_reordering_converges(
     }
 
     assert_eq!(reg, reordered_reg);
+    assert_eq!(reordered_reg.num_nodes(), unique_nodes.len());
     assert_eq!(reordered_reg.num_orphans(), 0);
 }
 
