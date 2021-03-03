@@ -7,7 +7,8 @@ use tiny_keccak::{Hasher, Sha3};
 
 use crate::traits::{CmRDT, CvRDT};
 
-type Hash = [u8; 32];
+/// The hash of a node
+pub type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,10 +116,15 @@ impl<T> MerkleReg<T> {
 
     /// Retrieve a node in the Merkle DAG by it's hash.
     ///
-    /// Traverse the history th register by pair this method with the parents
+    /// Traverse the history the register by pair this method with the parents
     /// of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
+    }
+
+    /// Returns the number of nodes who are visible, i.e. their parents have been seen.
+    pub fn num_nodes(&self) -> usize {
+        self.dag.len()
     }
 
     /// Returns the number of nodes who are not visible due to missing parents.
