@@ -13,13 +13,46 @@ fn test_write_resolves_fork() {
     reg.apply(reg.write("b", Default::default()));
 
     let contents = reg.read();
-    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&&"a", &&"b"]);
+    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"a", &"b"]);
 
     let parents = contents.hashes();
     reg.apply(reg.write("c", parents));
 
     let contents = reg.read();
-    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&&"c"]);
+    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"c"]);
+}
+
+#[test]
+fn test_traverse_reg_history() {
+    let mut reg = MerkleReg::new();
+
+    let a = reg.write("a", Default::default());
+    let b = reg.write("b", Default::default());
+    let c = reg.write("c", vec![a.hash(), b.hash()].into_iter().collect());
+
+    reg.apply(a.clone());
+    reg.apply(b.clone());
+    reg.apply(c.clone());
+
+    let contents = reg.read();
+    assert_eq!(contents.hashes(), vec![c.hash()].into_iter().collect());
+    assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"c"]);
+
+    let mut nodes: Vec<_> = contents.nodes().collect();
+    assert_eq!(nodes, vec![&c]);
+
+    let node_c = nodes.pop().unwrap();
+    assert_eq!(node_c.parents.len(), 2);
+
+    let mut parents: Vec<_> = node_c.parents.iter().copied().collect();
+    let parent_1 = parents.pop().unwrap();
+    let parent_2 = parents.pop().unwrap();
+
+    let mut parent_values = BTreeSet::new();
+    parent_values.insert(reg.node(parent_1).unwrap().value);
+    parent_values.insert(reg.node(parent_2).unwrap().value);
+
+    assert_eq!(parent_values, vec!["a", "b"].into_iter().collect());
 }
 
 #[test]
@@ -54,7 +87,7 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
     // Once the first node is applied, all other nodes will no longer be orphaned.
     let op_a = ops.pop().unwrap();
     reg.apply(op_a);
-    assert_eq!(reg.read().values().collect::<Vec<_>>(), vec![&&"d"]);
+    assert_eq!(reg.read().values().collect::<Vec<_>>(), vec![&"d"]);
     assert_eq!(reg.num_orphans(), 0);
 }
 

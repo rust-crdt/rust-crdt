@@ -12,8 +12,10 @@ type Hash = [u8; 32];
 /// A node in the Merkle DAG
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<T> {
-    parents: BTreeSet<Hash>,
-    value: T,
+    /// The parent nodes, addressed by their hash.
+    pub parents: BTreeSet<Hash>,
+    /// The value stored at this node.
+    pub value: T,
 }
 
 impl<T: Sha3Hash> Node<T> {
@@ -37,29 +39,34 @@ impl<T: Sha3Hash> Node<T> {
 /// The contents of a MerkleReg.
 ///
 /// Usually this is retrieved through a call to `MerkleReg::read`
-pub struct Content<T> {
-    hashes_and_values: BTreeMap<Hash, T>,
+pub struct Content<'a, T> {
+    nodes: BTreeMap<Hash, &'a Node<T>>,
 }
 
-impl<T> Content<T> {
+impl<'a, T> Content<'a, T> {
     /// Checks if the contents is empty
     pub fn is_empty(&self) -> bool {
-        self.hashes_and_values.is_empty()
+        self.nodes.is_empty()
     }
 
     /// Iterate over the content values
     pub fn values(&self) -> impl Iterator<Item = &T> {
-        self.hashes_and_values.values()
+        self.nodes.values().map(|n| &n.value)
+    }
+
+    /// Iterate over the Merkle DAG nodes holding the content values.
+    pub fn nodes(&self) -> impl Iterator<Item = &Node<T>> {
+        self.nodes.values().map(|n| *n)
     }
 
     /// Iterate over the hashes of the content values.
     pub fn hashes(&self) -> BTreeSet<Hash> {
-        self.hashes_and_values.keys().copied().collect()
+        self.nodes.keys().copied().collect()
     }
 
-    /// The concurrent hashes and values stored in the register
-    pub fn hashes_and_values(&self) -> &BTreeMap<Hash, T> {
-        &self.hashes_and_values
+    /// Iterate over the hashes of the content values.
+    pub fn hashes_and_nodes(&self) -> impl Iterator<Item = (Hash, &Node<T>)> {
+        self.nodes.iter().map(|(hash, node)| (*hash, *node))
     }
 }
 
@@ -90,13 +97,13 @@ impl<T> MerkleReg<T> {
     }
 
     /// Read the current values held by the register
-    pub fn read(&self) -> Content<&T> {
+    pub fn read(&self) -> Content<T> {
         Content {
-            hashes_and_values: self
+            nodes: self
                 .leaves
                 .iter()
                 .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, &node.value)))
+                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
                 .collect(),
         }
     }
@@ -104,6 +111,11 @@ impl<T> MerkleReg<T> {
     /// Write the given value on top of the given parents.
     pub fn write(&self, value: T, parents: BTreeSet<Hash>) -> Node<T> {
         Node { value, parents }
+    }
+
+    /// Retrieve a node in the Merkle DAG by it's hash.
+    pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
+        self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
     }
 
     /// Returns the number of nodes who are not visible due to missing parents.
