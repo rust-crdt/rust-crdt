@@ -114,6 +114,9 @@ impl<T> MerkleReg<T> {
     }
 
     /// Retrieve a node in the Merkle DAG by it's hash.
+    ///
+    /// Traverse the history th register by pair this method with the parents
+    /// of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
     }
