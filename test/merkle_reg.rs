@@ -38,13 +38,14 @@ fn test_traverse_reg_history() {
     assert_eq!(contents.hashes(), vec![c.hash()].into_iter().collect());
     assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"c"]);
 
-    let mut nodes: Vec<_> = contents.nodes().collect();
-    assert_eq!(nodes, vec![&c]);
+    let mut nodes: Vec<_> = contents.nodes();
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0].value(), &"c");
 
     let node_c = nodes.pop().unwrap();
-    assert_eq!(node_c.parents.len(), 2);
+    assert_eq!(node_c.parents().len(), 2);
 
-    let mut parents: Vec<_> = node_c.parents.iter().copied().collect();
+    let mut parents: Vec<_> = node_c.parents().hashes().iter().copied().collect();
     let parent_1 = parents.pop().unwrap();
     let parent_2 = parents.pop().unwrap();
 

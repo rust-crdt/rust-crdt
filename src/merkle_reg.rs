@@ -1,5 +1,4 @@
-use core::convert::Infallible;
-use core::fmt;
+use core::{convert::Infallible, fmt};
 use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,7 +10,7 @@ use crate::traits::{CmRDT, CvRDT};
 pub type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Node<T> {
     /// The parent nodes, addressed by their hash.
     pub parents: BTreeSet<Hash>,
@@ -37,10 +36,37 @@ impl<T: Sha3Hash> Node<T> {
     }
 }
 
+/// The nodes of a MerkleReg.
+pub struct ContentNode<'a, T> {
+    reg: &'a MerkleReg<T>,
+    node: &'a Node<T>,
+}
+
+impl<'a, T> ContentNode<'a, T> {
+    /// Returns the parents of this node
+    pub fn parents(&self) -> Content<T> {
+        Content {
+            reg: self.reg,
+            nodes: self
+                .node
+                .parents
+                .iter()
+                .filter_map(|hash| self.reg.node(*hash).map(|parent| (*hash, parent)))
+                .collect(),
+        }
+    }
+
+    /// Returns the value held by this node
+    pub fn value(&self) -> &T {
+        &self.node.value
+    }
+}
+
 /// The contents of a MerkleReg.
 ///
 /// Usually this is retrieved through a call to `MerkleReg::read`
 pub struct Content<'a, T> {
+    reg: &'a MerkleReg<T>,
     nodes: BTreeMap<Hash, &'a Node<T>>,
 }
 
@@ -50,31 +76,42 @@ impl<'a, T> Content<'a, T> {
         self.nodes.is_empty()
     }
 
+    /// Returns the number of nodes referenced by this content
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Returns the list of Merkle DAG nodes holding their hashes and values.
+    pub fn nodes(&self) -> Vec<ContentNode<'a, T>> {
+        self.nodes
+            .iter()
+            .map(|(_, n)| ContentNode {
+                reg: self.reg,
+                node: n,
+            })
+            .collect()
+    }
+
+    /// Returns the set of hashes of the content values.
+    pub fn hashes(&self) -> BTreeSet<Hash> {
+        self.nodes.keys().copied().collect()
+    }
+
     /// Iterate over the content values
     pub fn values(&self) -> impl Iterator<Item = &T> {
         self.nodes.values().map(|n| &n.value)
     }
 
-    /// Iterate over the Merkle DAG nodes holding the content values.
-    pub fn nodes(&self) -> impl Iterator<Item = &Node<T>> {
-        self.nodes.values().map(|n| *n)
-    }
-
     /// Iterate over the hashes of the content values.
-    pub fn hashes(&self) -> BTreeSet<Hash> {
-        self.nodes.keys().copied().collect()
-    }
-
-    /// Iterate over the hashes of the content values.
-    pub fn hashes_and_nodes(&self) -> impl Iterator<Item = (Hash, &Node<T>)> {
-        self.nodes.iter().map(|(hash, node)| (*hash, *node))
+    pub fn hashes_and_nodes(&self) -> impl Iterator<Item = (&Hash, &Node<T>)> {
+        self.nodes.iter().map(|(hash, node)| (hash, *node))
     }
 }
 
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
@@ -103,9 +140,9 @@ impl<T> MerkleReg<T> {
             nodes: self
                 .leaves
                 .iter()
-                .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
+                .filter_map(|leaf| self.dag.get(leaf).map(|node| (*leaf, node)))
                 .collect(),
+            reg: self,
         }
     }
 
@@ -120,21 +157,6 @@ impl<T> MerkleReg<T> {
     /// of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
-    }
-
-    /// Returns the parents of a node
-    pub fn parents(&self, hash: Hash) -> Content<T> {
-        let nodes = self.dag.get(&hash).map(|node| {
-            node.parents
-                .iter()
-                .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
-                .collect()
-        });
-
-        Content {
-            nodes: nodes.unwrap_or(BTreeMap::new()),
-        }
     }
 
     /// Returns the number of nodes who are visible, i.e. their parents have been seen.
