@@ -1,5 +1,4 @@
-use core::convert::Infallible;
-use core::fmt;
+use core::{convert::Infallible, fmt};
 use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,12 +10,14 @@ use crate::traits::{CmRDT, CvRDT};
 pub type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Node<T> {
     /// The parent nodes, addressed by their hash.
     pub parents: BTreeSet<Hash>,
     /// The value stored at this node.
     pub value: T,
+    /// The number of nodes in its longest ancestry chain
+    pub height: usize,
 }
 
 impl<T: Sha3Hash> Node<T> {
@@ -55,12 +56,17 @@ impl<'a, T> Content<'a, T> {
         self.nodes.values().map(|n| &n.value)
     }
 
+    /// Returns the number of nodes referenced by this content
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
     /// Iterate over the Merkle DAG nodes holding the content values.
     pub fn nodes(&self) -> impl Iterator<Item = &Node<T>> {
         self.nodes.values().map(|n| *n)
     }
 
-    /// Iterate over the hashes of the content values.
+    /// Returns the set of hashes of the content values.
     pub fn hashes(&self) -> BTreeSet<Hash> {
         self.nodes.keys().copied().collect()
     }
@@ -74,7 +80,7 @@ impl<'a, T> Content<'a, T> {
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
@@ -103,15 +109,18 @@ impl<T> MerkleReg<T> {
             nodes: self
                 .leaves
                 .iter()
-                .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
+                .filter_map(|leaf| self.dag.get(leaf).map(|node| (*leaf, node)))
                 .collect(),
         }
     }
 
     /// Write the given value on top of the given parents.
     pub fn write(&self, value: T, parents: BTreeSet<Hash>) -> Node<T> {
-        Node { value, parents }
+        Node {
+            value,
+            parents,
+            height: 0,
+        }
     }
 
     /// Retrieve a node in the Merkle DAG by it's hash.
@@ -120,6 +129,16 @@ impl<T> MerkleReg<T> {
     /// of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
+    }
+
+    /// Returns the number of nodes who are visible, i.e. their parents have been seen.
+    pub fn num_nodes(&self) -> usize {
+        self.dag.len()
+    }
+
+    /// Returns the number of nodes who are not visible due to missing parents.
+    pub fn num_orphans(&self) -> usize {
+        self.orphans.len()
     }
 
     /// Returns the parents of a node
@@ -137,18 +156,21 @@ impl<T> MerkleReg<T> {
         }
     }
 
-    /// Returns the number of nodes who are visible, i.e. their parents have been seen.
-    pub fn num_nodes(&self) -> usize {
-        self.dag.len()
-    }
+    // This helper checks if all hashes have been seen, and if so, it returns
+    // the max height among the nodes those hashes correspond to.
+    fn all_hashes_seen(&self, hashes: &BTreeSet<Hash>) -> Option<usize> {
+        let mut max_height = 0;
+        for hash in hashes.iter() {
+            if let Some(node) = self.dag.get(hash) {
+                if node.height > max_height {
+                    max_height = node.height;
+                }
+            } else {
+                return None;
+            }
+        }
 
-    /// Returns the number of nodes who are not visible due to missing parents.
-    pub fn num_orphans(&self) -> usize {
-        self.orphans.len()
-    }
-
-    fn all_hashes_seen(&self, hashes: &BTreeSet<Hash>) -> bool {
-        hashes.iter().all(|h| self.dag.contains_key(h))
+        Some(max_height)
     }
 }
 
@@ -181,13 +203,21 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
         Ok(())
     }
 
-    fn apply(&mut self, node: Self::Op) {
+    fn apply(&mut self, mut node: Self::Op) {
         let node_hash = node.hash();
         if self.dag.contains_key(&node_hash) || self.orphans.contains_key(&node_hash) {
             return;
         }
 
-        if self.all_hashes_seen(&node.parents) {
+        if let Some(p_height) = self.all_hashes_seen(&node.parents) {
+            // We set the new node's height to be its parents max height plus one
+            node.height = if node.parents.is_empty() {
+                // FIXME: find a neater way for the case of a root node
+                0
+            } else {
+                p_height + 1
+            };
+
             // This node will supercede any parents who happen to be leaves.
             for parent in node.parents.iter() {
                 self.leaves.remove(parent);
@@ -204,17 +234,28 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
             let hashes_that_are_now_ready_to_apply = self
                 .orphans
                 .iter()
-                .filter(|(_, node)| self.all_hashes_seen(&node.parents))
-                .map(|(hash, _)| hash)
-                .copied()
-                .collect::<Vec<_>>();
+                .filter_map(|(hash, node)| {
+                    self.all_hashes_seen(&node.parents).map(|p_height| {
+                        (
+                            hash.clone(),
+                            if node.parents.is_empty() {
+                                // FIXME: find a neater way for the case of a root node
+                                0
+                            } else {
+                                p_height + 1
+                            },
+                        )
+                    })
+                })
+                .collect::<Vec<(_, _)>>();
 
             let mut nodes_to_apply = Vec::new();
-            for hash in hashes_that_are_now_ready_to_apply {
+            for (hash, height) in hashes_that_are_now_ready_to_apply {
                 // Remove the previously orphaned nodes that are now
                 // ready to apply before we recurse, else we risk an
                 // exponential growth in memory.
-                if let Some(node) = self.orphans.remove(&hash) {
+                if let Some(mut node) = self.orphans.remove(&hash) {
+                    node.height = height;
                     nodes_to_apply.push(node);
                 }
             }
