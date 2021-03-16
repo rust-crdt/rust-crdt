@@ -42,17 +42,28 @@ fn test_traverse_reg_history() {
     assert_eq!(nodes, vec![&c]);
 
     let node_c = nodes.pop().unwrap();
-    assert_eq!(node_c.parents.len(), 2);
 
-    let mut parents: Vec<_> = node_c.parents.iter().copied().collect();
-    let parent_1 = parents.pop().unwrap();
-    let parent_2 = parents.pop().unwrap();
+    // check parents of node_c
+    let parents = reg.parents(node_c.hash());
+    assert_eq!(parents.hashes_and_nodes().count(), 2);
 
-    let mut parent_values = BTreeSet::new();
-    parent_values.insert(reg.node(parent_1).unwrap().value);
-    parent_values.insert(reg.node(parent_2).unwrap().value);
+    let mut hashes_and_nodes = parents.hashes_and_nodes();
+    let (parent_1, _) = hashes_and_nodes.next().unwrap();
+    let (parent_2, _) = hashes_and_nodes.next().unwrap();
+    assert_eq!(reg.node(parent_1).unwrap().value, "a");
+    assert_eq!(reg.node(parent_2).unwrap().value, "b");
 
-    assert_eq!(parent_values, vec!["a", "b"].into_iter().collect());
+    // check children of node_a and node_b is node_c
+    let a_children = reg.children(a.hash());
+    let b_children = reg.children(b.hash());
+
+    assert_eq!(a_children.hashes_and_nodes().count(), 1);
+    assert_eq!(b_children.hashes_and_nodes().count(), 1);
+
+    let a_hash_and_node = a_children.hashes_and_nodes().next().unwrap();
+    let b_hash_and_node = b_children.hashes_and_nodes().next().unwrap();
+    assert_eq!(a_hash_and_node, b_hash_and_node);
+    assert_eq!(reg.node(a_hash_and_node.0).unwrap().value, "c");
 }
 
 #[test]

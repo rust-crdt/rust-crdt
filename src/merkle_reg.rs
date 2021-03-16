@@ -1,8 +1,8 @@
 use core::convert::Infallible;
 use core::fmt;
-use std::collections::{BTreeMap, BTreeSet};
-
 use quickcheck::{Arbitrary, Gen};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::{Hasher, Sha3};
 
 use crate::traits::{CmRDT, CvRDT};
@@ -11,7 +11,7 @@ use crate::traits::{CmRDT, CvRDT};
 pub type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Deserialize)]
 pub struct Node<T> {
     /// The parent nodes, addressed by their hash.
     pub parents: BTreeSet<Hash>,
@@ -57,7 +57,7 @@ impl<'a, T> Content<'a, T> {
 
     /// Iterate over the Merkle DAG nodes holding the content values.
     pub fn nodes(&self) -> impl Iterator<Item = &Node<T>> {
-        self.nodes.values().map(|n| *n)
+        self.nodes.values().copied()
     }
 
     /// Iterate over the hashes of the content values.
@@ -74,7 +74,7 @@ impl<'a, T> Content<'a, T> {
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd)]
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
@@ -120,6 +120,38 @@ impl<T> MerkleReg<T> {
     /// of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
+    }
+
+    /// Returns the parents of a node
+    pub fn parents(&self, hash: Hash) -> Content<T> {
+        let nodes = self.dag.get(&hash).map(|node| {
+            node.parents
+                .iter()
+                .copied()
+                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
+                .collect()
+        });
+
+        Content {
+            nodes: nodes.unwrap_or_default(),
+        }
+    }
+
+    /// Returns the children of a node
+    pub fn children(&self, hash: Hash) -> Content<T> {
+        let children = self
+            .dag
+            .iter()
+            .filter_map(|(h, node)| {
+                if node.parents.contains(&hash) {
+                    Some((*h, node))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Content { nodes: children }
     }
 
     /// Returns the number of nodes who are visible, i.e. their parents have been seen.
