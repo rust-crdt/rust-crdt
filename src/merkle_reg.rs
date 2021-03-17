@@ -1,8 +1,9 @@
 use core::convert::Infallible;
 use core::fmt;
+use std::collections::{BTreeMap, BTreeSet};
+
 use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::{Hasher, Sha3};
 
 use crate::traits::{CmRDT, CvRDT};
@@ -11,7 +12,7 @@ use crate::traits::{CmRDT, CvRDT};
 pub type Hash = [u8; 32];
 
 /// A node in the Merkle DAG
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Node<T> {
     /// The parent nodes, addressed by their hash.
     pub parents: BTreeSet<Hash>,
@@ -74,7 +75,7 @@ impl<'a, T> Content<'a, T> {
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
 /// The leaves of the Merkle DAG are the current values.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MerkleReg<T> {
     leaves: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
@@ -128,7 +129,9 @@ impl<T> MerkleReg<T> {
             node.parents
                 .iter()
                 .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
+                .filter_map(|parent_hash| {
+                    self.dag.get(&parent_hash).map(|node| (parent_hash, node))
+                })
                 .collect()
         });
 
