@@ -95,7 +95,7 @@ impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
 
 /// An ordered dot.
 /// dot's are first ordered by actor, dots from the same actor are ordered by counter.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub struct OrdDot<A: Ord> {
     /// The actor who created this dot.
     pub actor: A,

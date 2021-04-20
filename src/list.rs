@@ -53,7 +53,7 @@ use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
 /// A List is a CRDT for storing sequences of data (Strings, ordered lists).
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct List<T, A: Ord> {
     seq: BTreeMap<Identifier<OrdDot<A>>, T>,
     clock: VClock<A>,
