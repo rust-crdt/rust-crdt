@@ -71,31 +71,60 @@ impl<T: Clone + Eq> Identifier<T> {
     }
 
     /// Construct an entry between low and high holding the given element.
-    pub fn between(low: Option<&Self>, high: Option<&Self>, elem: T) -> Self {
+    pub fn between(low: Option<&Self>, high: Option<&Self>, marker: T) -> Self {
         match (low, high) {
             (Some(low), Some(high)) => {
+                if low > high {
+                    return Self::between(Some(high), Some(low), marker);
+                } else if low == high {
+                    return high.clone();
+                }
                 // Walk both paths until we reach a fork, constructing the path between these
                 // two entries as we go.
 
                 let mut path: Vec<(BigRational, T)> = vec![];
-                let low_path = low.0.iter().cloned();
-                let high_path = high.0.iter();
-                let mut lower_bound = None;
-                let mut upper_bound = None;
-                for (l, h) in low_path.zip(high_path) {
-                    if l.0 == h.0 {
-                        // The entry between low and high will share the common path between these two
-                        // entries. We accumulate this common prefix path as we traverse.
-                        path.push(l)
-                    } else {
-                        // We find a spot where the lower and upper paths fork.
-                        // We can insert our elem between these two bounds.
-                        lower_bound = Some(l.0);
-                        upper_bound = Some(&h.0);
-                        break;
+                let mut low_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
+                    Box::new(low.0.iter());
+                let mut high_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
+                    Box::new(high.0.iter());
+                loop {
+                    match (low_path.next(), high_path.next()) {
+                        (Some((l_ratio, l_marker)), Some((h_ratio, h_marker))) => {
+                            match l_ratio.cmp(h_ratio) {
+                                Ordering::Equal => {
+                                    if &marker > l_marker && &marker < h_marker {
+                                        path.push((h_ratio.clone(), marker));
+                                        break;
+                                    } else if l_marker == h_marker {
+                                        path.push((l_ratio.clone(), l_marker.clone()));
+                                    } else {
+                                        // Otherwise, the two paths diverge.
+                                        // Choose one path and clear out the other.
+                                        //
+                                        // TODO: randomize the choice here instead of always
+                                        // choosing the  lower path
+                                        path.push((l_ratio.clone(), l_marker.clone()));
+                                        high_path = Box::new(std::iter::empty());
+                                    }
+                                }
+                                _ => {
+                                    path.push((
+                                        rational_between(Some(l_ratio), Some(h_ratio)),
+                                        marker,
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                        (low_node, high_node) => {
+                            path.push((
+                                rational_between(low_node.map(|n| &n.0), high_node.map(|n| &n.0)),
+                                marker,
+                            ));
+                            break;
+                        }
                     }
                 }
-                path.push((rational_between(lower_bound.as_ref(), upper_bound), elem));
                 Self(path)
             }
 
@@ -104,7 +133,7 @@ impl<T: Clone + Eq> Identifier<T> {
                     low.and_then(|low_entry| low_entry.0.first().map(|(r, _)| r)),
                     high.and_then(|high_entry| high_entry.0.first().map(|(r, _)| r)),
                 ),
-                elem,
+                marker,
             )]),
         }
     }
@@ -166,20 +195,96 @@ mod tests {
         assert!(id_a < id_b);
     }
 
-    #[quickcheck]
-    fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, elem: u8) -> TestResult {
-        if id_a.0.is_empty() || id_b.0.is_empty() {
-            return TestResult::discard();
-        }
+    #[test]
+    fn test_id_is_dense_qc1() {
+        let id_a = Identifier(vec![
+            (BigRational::new(0i64.into(), 1i64.into()), 0),
+            (BigRational::new(0i64.into(), 1.into()), 0),
+        ]);
+        let id_b = Identifier(vec![(BigRational::new(0i64.into(), 1i64.into()), 0)]);
+        println!("id_a: {}", id_a);
+        println!("id_b: {}", id_b);
+        println!("id_a < id_b: {:?}", id_a < id_b);
+        println!("id_b < id_a: {:?}", id_b < id_a);
+        assert!(id_a < id_b);
+
+        let id_mid = Identifier::between(Some(&id_a), Some(&id_b), 0);
+        println!("minmax: {}, {}", id_a, id_b);
+        assert!(id_a < id_mid, "{} < {}", id_a, id_mid);
+        assert!(id_mid < id_b, "{} < {}", id_mid, id_b);
+    }
+
+    #[test]
+    fn test_id_is_dense_qc2() {
+        let id_a = Identifier(vec![
+            (BigRational::new(0.into(), 1.into()), 1),
+            (BigRational::new((-1).into(), 1.into()), 0),
+        ]);
+        let id_b = Identifier(vec![
+            (BigRational::new(0.into(), 1.into()), 0),
+            (BigRational::new(0.into(), 1.into()), 0),
+        ]);
+        let marker = 0;
+
         let (id_min, id_max) = if id_a < id_b {
             (id_a, id_b)
         } else {
             (id_b, id_a)
         };
 
-        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), elem);
-        assert!(id_min < id_mid);
-        assert!(id_mid < id_max);
+        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+
+        if id_min == id_max {
+            assert_eq!(id_min, id_mid);
+            assert_eq!(id_max, id_mid);
+        } else {
+            assert!(id_min < id_mid, "{} < {}", id_min, id_mid);
+            assert!(id_mid < id_max, "{} < {}", id_mid, id_max);
+        }
+    }
+
+    #[test]
+    fn test_id_is_dense_qc3() {
+        let (id_a, id_b, marker) = (
+            Identifier(vec![(BigRational::new(0.into(), 1.into()), 96)]),
+            Identifier(vec![(BigRational::new(0.into(), 1.into()), 69)]),
+            0,
+        );
+        let (id_min, id_max) = if id_a < id_b {
+            (id_a, id_b)
+        } else {
+            (id_b, id_a)
+        };
+
+        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+
+        if id_min == id_max {
+            assert_eq!(id_min, id_mid);
+            assert_eq!(id_max, id_mid);
+        } else {
+            assert!(id_min < id_mid, "{} < {}", id_min, id_mid);
+            assert!(id_mid < id_max, "{} < {}", id_mid, id_max);
+        }
+    }
+
+    #[quickcheck]
+    fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, marker: u8) -> TestResult {
+        let (id_min, id_max) = if id_a < id_b {
+            (id_a, id_b)
+        } else {
+            (id_b, id_a)
+        };
+
+        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+
+        if id_min == id_max {
+            assert_eq!(id_min, id_mid);
+            assert_eq!(id_max, id_mid);
+        } else {
+            assert!(id_min < id_mid, "{} < {}", id_min, id_mid);
+            assert!(id_mid < id_max, "{} < {}", id_mid, id_max);
+        }
+
         TestResult::passed()
     }
 
@@ -197,19 +302,15 @@ mod tests {
         }
     }
 
-    #[ignore]
     #[test]
-    fn test_id_is_dense() {
-        let id_a = Identifier(vec![(BigRational::from_integer((-1000).into()), 65)]);
-        let id_b = Identifier(vec![]);
-        let elem = 0;
-        let (id_min, id_max) = if id_a < id_b {
-            (id_a, id_b)
-        } else {
-            (id_b, id_a)
-        };
+    fn test_id_is_dense_with_empty_identifier() {
+        let id_min = Identifier(vec![(BigRational::from_integer((-1000).into()), 65)]);
+        let id_max = Identifier(vec![]);
+        let marker = 0;
 
-        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), elem);
+        assert!(id_min < id_max);
+
+        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
         println!("mid: {}", id_mid);
         assert!(id_min < id_mid);
         assert!(id_mid < id_max);
