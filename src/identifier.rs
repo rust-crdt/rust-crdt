@@ -8,6 +8,7 @@
 //!
 //! The GList and List CRDT's rely on this property so that we may always insert elements
 //! between any existing elements.
+use core::cmp::Ordering;
 use core::fmt;
 
 use num::{BigRational, One, Zero};
@@ -25,8 +26,32 @@ fn rational_between(low: Option<&BigRational>, high: Option<&BigRational>) -> Bi
 
 /// A dense Identifier, if you have two identifiers that are different, we can
 /// always construct an identifier between them.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Identifier<T>(Vec<(BigRational, T)>);
+
+impl<T: Ord> PartialOrd for Identifier<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: Ord> Ord for Identifier<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut self_path = self.0.iter();
+        let mut other_path = other.0.iter();
+        loop {
+            match (self_path.next(), other_path.next()) {
+                (Some(self_node), Some(other_node)) => match self_node.cmp(other_node) {
+                    Ordering::Equal => continue,
+                    ord => return ord,
+                },
+                (None, Some(_)) => return Ordering::Greater,
+                (Some(_), None) => return Ordering::Less,
+                (None, None) => return Ordering::Equal,
+            }
+        }
+    }
+}
 
 impl<T> From<(BigRational, T)> for Identifier<T> {
     fn from((rational, value): (BigRational, T)) -> Self {
@@ -114,6 +139,15 @@ impl<T: Arbitrary> Arbitrary for Identifier<T> {
         }
         Self(path)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let mut path = self.0.clone();
+        if let Some(_) = path.pop() {
+            Box::new(std::iter::once(Self(path)))
+        } else {
+            Box::new(std::iter::empty())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -121,6 +155,16 @@ mod tests {
     use super::*;
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
+
+    #[test]
+    fn test_adding_zero_node_makes_identifier_smaller() {
+        let id_a = Identifier(vec![
+            (BigRational::new(0.into(), 1.into()), 0),
+            (BigRational::new(0.into(), 1.into()), 0),
+        ]);
+        let id_b = Identifier(vec![(BigRational::new(0.into(), 1.into()), 0)]);
+        assert!(id_a < id_b);
+    }
 
     #[quickcheck]
     fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, elem: u8) -> TestResult {
