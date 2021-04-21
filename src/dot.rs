@@ -127,6 +127,12 @@ pub struct DotRange<A> {
     pub counter_range: core::ops::Range<u64>,
 }
 
+impl<A: fmt::Debug + Ord> fmt::Display for OrdDot<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}.{}", self.actor, self.counter)
+    }
+}
+
 impl<A: fmt::Debug> fmt::Display for DotRange<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
