@@ -59,7 +59,7 @@ impl<T> From<(BigRational, T)> for Identifier<T> {
     }
 }
 
-impl<T: Clone + Eq> Identifier<T> {
+impl<T: Clone + Ord + Eq> Identifier<T> {
     /// Get a reference to the value this entry represents.
     pub fn value(&self) -> &T {
         self.0.last().map(|(_, elem)| elem).unwrap() // TODO: remove this unwrap
@@ -79,41 +79,32 @@ impl<T: Clone + Eq> Identifier<T> {
                 } else if low == high {
                     return high.clone();
                 }
+
                 // Walk both paths until we reach a fork, constructing the path between these
                 // two entries as we go.
 
                 let mut path: Vec<(BigRational, T)> = vec![];
+
                 let mut low_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
                     Box::new(low.0.iter());
                 let mut high_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
                     Box::new(high.0.iter());
                 loop {
                     match (low_path.next(), high_path.next()) {
-                        (Some((l_ratio, l_marker)), Some((h_ratio, h_marker))) => {
-                            match l_ratio.cmp(h_ratio) {
-                                Ordering::Equal => {
-                                    if &marker > l_marker && &marker < h_marker {
-                                        path.push((h_ratio.clone(), marker));
-                                        break;
-                                    } else if l_marker == h_marker {
-                                        path.push((l_ratio.clone(), l_marker.clone()));
-                                    } else {
-                                        // Otherwise, the two paths diverge.
-                                        // Choose one path and clear out the other.
-                                        //
-                                        // TODO: randomize the choice here instead of always
-                                        // choosing the  lower path
-                                        path.push((l_ratio.clone(), l_marker.clone()));
-                                        high_path = Box::new(std::iter::empty());
-                                    }
-                                }
-                                _ => {
-                                    path.push((
-                                        rational_between(Some(l_ratio), Some(h_ratio)),
-                                        marker,
-                                    ));
-                                    break;
-                                }
+                        (Some((l_ratio, l_m)), Some((h_ratio, h_m))) if l_ratio == h_ratio => {
+                            if l_m < &marker && &marker < h_m {
+                                // The marker fits between the low and high marker
+                                path.push((h_ratio.clone(), marker));
+                                break;
+                            } else if l_m == h_m {
+                                // We are on a common prefix of the two paths, copy it over
+                                // to our output path and continue till we reach a fork.
+                                path.push((h_ratio.clone(), h_m.clone()));
+                            } else {
+                                // Otherwise, the two paths have diverged.
+                                // Choose one path and clear out the other.
+                                path.push((h_ratio.clone(), h_m.clone()));
+                                low_path = Box::new(std::iter::empty());
                             }
                         }
                         (low_node, high_node) => {
@@ -246,8 +237,8 @@ mod tests {
     #[test]
     fn test_id_is_dense_qc3() {
         let (id_a, id_b, marker) = (
-            Identifier(vec![(BigRational::new(0.into(), 1.into()), 96)]),
-            Identifier(vec![(BigRational::new(0.into(), 1.into()), 69)]),
+            Identifier(vec![(BigRational::new(0.into(), 1.into()), 1)]),
+            Identifier(vec![(BigRational::new(0.into(), 1.into()), 0)]),
             0,
         );
         let (id_min, id_max) = if id_a < id_b {
