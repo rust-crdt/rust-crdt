@@ -103,21 +103,21 @@ impl<A: Arbitrary + Clone, C: Arbitrary + Clone + Num + FromPrimitive + PartialO
 
 /// An ordered dot.
 /// dot's are first ordered by actor, dots from the same actor are ordered by counter.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct OrdDot<A: Ord, C: Ord = u64> {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct OrdDot<A: Ord, C = u64> {
     /// The actor who created this dot.
     pub actor: A,
     /// The current counter of this actor.
     pub counter: C,
 }
 
-impl<A: Ord, C: Ord> From<OrdDot<A, C>> for Dot<A, C> {
+impl<A: Ord, C> From<OrdDot<A, C>> for Dot<A, C> {
     fn from(OrdDot { actor, counter }: OrdDot<A, C>) -> Self {
         Self { actor, counter }
     }
 }
 
-impl<A: Ord, C: Ord> From<Dot<A, C>> for OrdDot<A, C> {
+impl<A: Ord, C> From<Dot<A, C>> for OrdDot<A, C> {
     fn from(Dot { actor, counter }: Dot<A, C>) -> Self {
         Self { actor, counter }
     }
@@ -133,6 +133,12 @@ pub struct DotRange<A, C = u64> {
     ///
     /// Start is inclusive, end is exclusive.
     pub counter_range: core::ops::Range<C>,
+}
+
+impl<A: fmt::Debug + Ord, C: fmt::Display> fmt::Display for OrdDot<A, C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}.{}", self.actor, self.counter)
+    }
 }
 
 impl<A: fmt::Debug, C: fmt::Display> fmt::Display for DotRange<A, C> {
