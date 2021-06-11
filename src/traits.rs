@@ -68,7 +68,7 @@ pub trait CmRDT {
 }
 
 /// CRDT's are causal if they are built on top of vector clocks.
-pub trait ResetRemove<A: Ord> {
+pub trait ResetRemove<A: Ord, C = u64> {
     /// Remove data that is strictly smaller than this clock
-    fn reset_remove(&mut self, clock: &VClock<A>);
+    fn reset_remove(&mut self, clock: &VClock<A, C>);
 }

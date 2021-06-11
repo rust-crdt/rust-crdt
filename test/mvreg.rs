@@ -109,8 +109,8 @@ fn ops_are_not_compatible(opss: &[&Vec<(u8, u8)>]) -> bool {
     // the same actor version.
     for a_ops in opss.iter() {
         for b_ops in opss.iter().filter(|o| o != &a_ops) {
-            let mut a_clock = VClock::new();
-            let mut b_clock = VClock::new();
+            let mut a_clock = VClock::<u8>::new();
+            let mut b_clock = VClock::<u8>::new();
             for ((_, a_actor), (_, b_actor)) in a_ops.iter().zip(b_ops.iter()) {
                 a_clock.apply(a_clock.inc(*a_actor));
                 b_clock.apply(b_clock.inc(*b_actor));

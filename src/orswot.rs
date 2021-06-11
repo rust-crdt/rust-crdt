@@ -5,6 +5,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
 
+use num::traits::{FromPrimitive, Num};
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx, RmCtx};
@@ -14,10 +15,10 @@ use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 /// `Orswot` is an add-biased or-set without tombstones ported from
 /// the riak_dt CRDT library.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Orswot<M: Hash + Eq, A: Ord + Hash> {
-    pub(crate) clock: VClock<A>,
-    pub(crate) entries: HashMap<M, VClock<A>>,
-    pub(crate) deferred: HashMap<VClock<A>, HashSet<M>>,
+pub struct Orswot<M: Hash + Eq, A: Ord + Hash, C: Hash + Eq = u64> {
+    pub(crate) clock: VClock<A, C>,
+    pub(crate) entries: HashMap<M, VClock<A, C>>,
+    pub(crate) deferred: HashMap<VClock<A, C>, HashSet<M>>,
 }
 
 /// Op's define an edit to an Orswot, Op's must be replayed in the exact order
@@ -25,24 +26,24 @@ pub struct Orswot<M: Hash + Eq, A: Ord + Hash> {
 ///
 /// Op's are idempotent, that is, applying an Op twice will not have an effect
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Op<M, A: Ord> {
+pub enum Op<M, A: Ord, C = u64> {
     /// Add members to the set
     Add {
         /// witnessing dot
-        dot: Dot<A>,
+        dot: Dot<A, C>,
         /// Members to add
         members: Vec<M>,
     },
     /// Remove member from the set
     Rm {
         /// witnessing clock
-        clock: VClock<A>,
+        clock: VClock<A, C>,
         /// Members to remove
         members: Vec<M>,
     },
 }
 
-impl<M: Hash + Eq, A: Ord + Hash> Default for Orswot<M, A> {
+impl<M: Hash + Eq, A: Ord + Hash, C: Hash + Eq> Default for Orswot<M, A, C> {
     fn default() -> Self {
         Orswot {
             clock: Default::default(),
@@ -52,9 +53,14 @@ impl<M: Hash + Eq, A: Ord + Hash> Default for Orswot<M, A> {
     }
 }
 
-impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone + Debug> CmRDT for Orswot<M, A> {
-    type Op = Op<M, A>;
-    type Validation = <VClock<A> as CmRDT>::Validation;
+impl<
+        M: Hash + Clone + Eq,
+        A: Ord + Hash + Clone + Debug,
+        C: Ord + Hash + Clone + Debug + Display + Num,
+    > CmRDT for Orswot<M, A, C>
+{
+    type Op = Op<M, A, C>;
+    type Validation = <VClock<A, C> as CmRDT>::Validation;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
@@ -88,12 +94,12 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone + Debug> CmRDT for Orswot<M, A>
 
 /// The variations that an ORSWOT may fail validation.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Validation<M, A> {
+pub enum Validation<M, A, C = u64> {
     /// We've detected that two different members were inserted with the same dot.
     /// This can break associativity.
     DoubleSpentDot {
         /// The dot that was double spent
-        dot: Dot<A>,
+        dot: Dot<A, C>,
         /// Our member inserted with this dot
         our_member: M,
         /// Their member inserted with this dot
@@ -229,19 +235,21 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash> ResetRemove<A> for Orswot<M, A> {
     }
 }
 
-impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
+impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone, C: Hash + Eq + Clone + Ord + Num>
+    Orswot<M, A, C>
+{
     /// Returns a new `Orswot` instance.
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Return a snapshot of the ORSWOT clock
-    pub fn clock(&self) -> VClock<A> {
+    pub fn clock(&self) -> VClock<A, C> {
         self.clock.clone()
     }
 
     /// Add a single element.
-    pub fn add(&self, member: M, ctx: AddCtx<A>) -> Op<M, A> {
+    pub fn add(&self, member: M, ctx: AddCtx<A, C>) -> Op<M, A, C> {
         Op::Add {
             dot: ctx.dot,
             members: std::iter::once(member).collect(),
@@ -249,7 +257,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Add multiple elements.
-    pub fn add_all<I: IntoIterator<Item = M>>(&self, members: I, ctx: AddCtx<A>) -> Op<M, A> {
+    pub fn add_all<I: IntoIterator<Item = M>>(&self, members: I, ctx: AddCtx<A, C>) -> Op<M, A, C> {
         Op::Add {
             dot: ctx.dot,
             members: members.into_iter().collect(),
@@ -257,7 +265,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Remove a member with a witnessing ctx.
-    pub fn rm(&self, member: M, ctx: RmCtx<A>) -> Op<M, A> {
+    pub fn rm(&self, member: M, ctx: RmCtx<A, C>) -> Op<M, A, C> {
         Op::Rm {
             clock: ctx.clock,
             members: std::iter::once(member).collect(),
@@ -265,7 +273,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Remove members with a witnessing ctx.
-    pub fn rm_all<I: IntoIterator<Item = M>>(&self, members: I, ctx: RmCtx<A>) -> Op<M, A> {
+    pub fn rm_all<I: IntoIterator<Item = M>>(&self, members: I, ctx: RmCtx<A, C>) -> Op<M, A, C> {
         Op::Rm {
             clock: ctx.clock,
             members: members.into_iter().collect(),
@@ -273,7 +281,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Remove members using a witnessing clock.
-    fn apply_rm(&mut self, members: HashSet<M>, clock: VClock<A>) {
+    fn apply_rm(&mut self, members: HashSet<M>, clock: VClock<A, C>) {
         for member in members.iter() {
             if let Some(member_clock) = self.entries.get_mut(&member) {
                 member_clock.reset_remove(&clock);
@@ -296,7 +304,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Check if the set contains a member
-    pub fn contains(&self, member: &M) -> ReadCtx<bool, A> {
+    pub fn contains(&self, member: &M) -> ReadCtx<bool, A, C> {
         let member_clock_opt = self.entries.get(&member);
         let exists = member_clock_opt.is_some();
         ReadCtx {
@@ -332,7 +340,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     ///
     /// assert_eq!(items, &[50, 100]);
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<&M, A>> {
+    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<&M, A, C>> {
         self.entries.iter().map(move |(m, clock)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: clock.clone(),
@@ -341,7 +349,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Retrieve the current members.
-    pub fn read(&self) -> ReadCtx<HashSet<M>, A> {
+    pub fn read(&self) -> ReadCtx<HashSet<M>, A, C> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -350,7 +358,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 
     /// Retrieve the current read context
-    pub fn read_ctx(&self) -> ReadCtx<(), A> {
+    pub fn read_ctx(&self) -> ReadCtx<(), A, C> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -366,7 +374,12 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 }
 
-impl<A: Ord + Hash + Arbitrary + Debug, M: Hash + Eq + Arbitrary> Arbitrary for Op<M, A> {
+impl<
+        A: Ord + Hash + Arbitrary + Debug,
+        M: Hash + Eq + Arbitrary,
+        C: Arbitrary + Ord + Clone + Debug + Display + Num + FromPrimitive,
+    > Arbitrary for Op<M, A, C>
+{
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let dot = Dot::arbitrary(g);
         let clock = VClock::arbitrary(g);
@@ -429,7 +442,7 @@ impl<A: Ord + Hash + Arbitrary + Debug, M: Hash + Eq + Arbitrary> Arbitrary for 
     }
 }
 
-impl<M: Debug, A: Ord + Hash + Debug> Debug for Op<M, A> {
+impl<M: Debug, A: Ord + Hash + Debug, C: Hash + Eq + Debug> Debug for Op<M, A, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Op::Add { dot, members } => write!(f, "Add({:?}, {:?})", dot, members),

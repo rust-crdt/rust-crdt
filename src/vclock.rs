@@ -18,6 +18,7 @@ use core::fmt::{self, Debug, Display};
 use core::mem;
 use std::collections::{btree_map, BTreeMap};
 
+use num::traits::{FromPrimitive, Num};
 use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
@@ -33,12 +34,12 @@ use crate::{CmRDT, CvRDT, Dot, DotRange, ResetRemove};
 /// or if different replicas are "concurrent" (were mutated in
 /// isolation, and need to be resolved externally).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct VClock<A: Ord> {
+pub struct VClock<A: Ord, C = u64> {
     /// dots is the mapping from actors to their associated counters
-    pub dots: BTreeMap<A, u64>,
+    pub dots: BTreeMap<A, C>,
 }
 
-impl<A: Ord> Default for VClock<A> {
+impl<A: Ord, C> Default for VClock<A, C> {
     fn default() -> Self {
         Self {
             dots: BTreeMap::new(),
@@ -46,27 +47,31 @@ impl<A: Ord> Default for VClock<A> {
     }
 }
 
-impl<A: Ord> PartialOrd for VClock<A> {
-    fn partial_cmp(&self, other: &VClock<A>) -> Option<Ordering> {
+impl<A: Ord, C: Ord + Num> PartialOrd for VClock<A, C> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // This algorithm is pretty naive, I think there's a way to
         // just track if the ordering changes as we iterate over the
         // active dots zipped by actor.
         // ie. it's None if the ordering changes from Less to Greator
         //     or vice-versa.
 
-        if self == other {
-            Some(Ordering::Equal)
-        } else if other.dots.iter().all(|(w, c)| self.get(w) >= *c) {
-            Some(Ordering::Greater)
-        } else if self.dots.iter().all(|(w, c)| other.get(w) >= *c) {
-            Some(Ordering::Less)
-        } else {
-            None
+        let zero = C::zero();
+        let mut cmp = None;
+        for (i, (a, l)) in self.dots.iter().enumerate() {
+            cmp = match (i, other.dots.get(a).unwrap_or(&zero), cmp) {
+                (0, r, _) => l.partial_cmp(r),
+                (_, r, Some(Ordering::Equal)) => l.partial_cmp(r),
+                (_, r, Some(Ordering::Less)) if l <= r => cmp,
+                (_, r, Some(Ordering::Greater)) if l >= r => cmp,
+                (_, _, _) => return None,
+            };
         }
+
+        cmp
     }
 }
 
-impl<A: Ord + Display> Display for VClock<A> {
+impl<A: Ord + Display, C: Ord + Display> Display for VClock<A, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<")?;
         for (i, (actor, count)) in self.dots.iter().enumerate() {
@@ -79,28 +84,28 @@ impl<A: Ord + Display> Display for VClock<A> {
     }
 }
 
-impl<A: Ord> ResetRemove<A> for VClock<A> {
+impl<A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for VClock<A, C> {
     /// Forget any actors that have smaller counts than the
     /// count in the given vclock
-    fn reset_remove(&mut self, other: &Self) {
-        for Dot { actor, counter } in other.iter() {
-            if counter >= self.get(&actor) {
-                self.dots.remove(&actor);
+    fn reset_remove(&mut self, other: &VClock<A, C>) {
+        for (a, c) in other.dots.iter() {
+            if c >= &self.get(&a) {
+                self.dots.remove(&a);
             }
         }
     }
 }
 
-impl<A: Ord + Clone + Debug> CmRDT for VClock<A> {
-    type Op = Dot<A>;
-    type Validation = DotRange<A>;
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CmRDT for VClock<A, C> {
+    type Op = Dot<A, C>;
+    type Validation = DotRange<A, C>;
 
     fn validate_op(&self, dot: &Self::Op) -> Result<(), Self::Validation> {
-        let next_counter = self.get(&dot.actor) + 1;
+        let next_counter = self.get(&dot.actor) + C::one();
         if dot.counter > next_counter {
             Err(DotRange {
                 actor: dot.actor.clone(),
-                counter_range: next_counter..dot.counter,
+                counter_range: next_counter..dot.counter.clone(),
             })
         } else {
             Ok(())
@@ -129,7 +134,7 @@ impl<A: Ord + Clone + Debug> CmRDT for VClock<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> CvRDT for VClock<A> {
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CvRDT for VClock<A, C> {
     type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
@@ -143,7 +148,7 @@ impl<A: Ord + Clone + Debug> CvRDT for VClock<A> {
     }
 }
 
-impl<A: Ord> VClock<A> {
+impl<A: Ord, C> VClock<A, C> {
     /// Returns a new `VClock` instance.
     pub fn new() -> Self {
         Default::default()
@@ -151,9 +156,10 @@ impl<A: Ord> VClock<A> {
 
     /// Returns a clone of self but with information that is older than given clock is
     /// forgotten
-    pub fn clone_without(&self, base_clock: &VClock<A>) -> VClock<A>
+    pub fn clone_without(&self, base_clock: &Self) -> Self
     where
         A: Clone,
+        C: Ord + Clone + Num,
     {
         let mut cloned = self.clone();
         cloned.reset_remove(&base_clock);
@@ -182,21 +188,28 @@ impl<A: Ord> VClock<A> {
     /// other_node.apply(op);
     /// assert_eq!(other_node.get(&"A"), 1);
     /// ```
-    pub fn inc(&self, actor: A) -> Dot<A>
+    pub fn inc(&self, actor: A) -> Dot<A, C>
     where
         A: Clone,
+        C: Clone + Num,
     {
         self.dot(actor).inc()
     }
 
     /// Return the associated counter for this actor.
     /// All actors not in the vclock have an implied count of 0
-    pub fn get(&self, actor: &A) -> u64 {
-        self.dots.get(actor).cloned().unwrap_or(0)
+    pub fn get(&self, actor: &A) -> C
+    where
+        C: Clone + Num,
+    {
+        self.dots.get(actor).cloned().unwrap_or(C::zero())
     }
 
     /// Return the Dot for a given actor
-    pub fn dot(&self, actor: A) -> Dot<A> {
+    pub fn dot(&self, actor: A) -> Dot<A, C>
+    where
+        C: Clone + Num,
+    {
         let counter = self.get(&actor);
         Dot::new(actor, counter)
     }
@@ -211,7 +224,10 @@ impl<A: Ord> VClock<A> {
     /// b.apply(b.inc("B"));
     /// assert!(a.concurrent(&b));
     /// ```
-    pub fn concurrent(&self, other: &VClock<A>) -> bool {
+    pub fn concurrent(&self, other: &Self) -> bool
+    where
+        C: Ord + Num,
+    {
         self.partial_cmp(other).is_none()
     }
 
@@ -222,15 +238,16 @@ impl<A: Ord> VClock<A> {
 
     /// Returns the common elements (same actor and counter)
     /// for two `VClock` instances.
-    pub fn intersection(left: &VClock<A>, right: &VClock<A>) -> VClock<A>
+    pub fn intersection(left: &Self, right: &Self) -> Self
     where
         A: Clone,
+        C: Clone + Num,
     {
         let mut dots = BTreeMap::new();
         for (left_actor, left_counter) in left.dots.iter() {
             let right_counter = right.get(left_actor);
             if right_counter == *left_counter {
-                dots.insert(left_actor.clone(), *left_counter);
+                dots.insert(left_actor.clone(), left_counter.clone());
             }
         }
         Self { dots }
@@ -253,48 +270,55 @@ impl<A: Ord> VClock<A> {
     /// c.glb(&c2); // should remove the 43 => 1 entry
     /// assert_eq!(c.get(&43), 0);
     /// ```
-    pub fn glb(&mut self, other: &Self) {
+    pub fn glb(&mut self, other: &Self)
+    where
+        C: Ord + Clone + Num,
+    {
         self.dots = mem::replace(&mut self.dots, BTreeMap::new())
             .into_iter()
             .filter_map(|(actor, count)| {
                 // Since an actor missing from the dots map has an implied
                 // counter of 0 we can save some memory, and remove the actor.
                 let min_count = cmp::min(count, other.get(&actor));
-                match min_count {
-                    0 => None,
-                    _ => Some((actor, min_count)),
+                if min_count == C::zero() {
+                    None
+                } else {
+                    Some((actor, min_count))
                 }
             })
             .collect();
     }
 
     /// Returns an iterator over the dots in this vclock
-    pub fn iter(&self) -> impl Iterator<Item = Dot<&A>> {
+    pub fn iter(&self) -> impl Iterator<Item = Dot<&A, C>>
+    where
+        C: Clone,
+    {
         self.dots.iter().map(|(a, c)| Dot {
             actor: a,
-            counter: *c,
+            counter: c.clone(),
         })
     }
 }
 
 /// Generated from calls to VClock::into_iter()
-pub struct IntoIter<A: Ord> {
-    btree_iter: btree_map::IntoIter<A, u64>,
+pub struct IntoIter<A: Ord, C: Ord = u64> {
+    btree_iter: btree_map::IntoIter<A, C>,
 }
 
-impl<A: Ord> std::iter::Iterator for IntoIter<A> {
-    type Item = Dot<A>;
+impl<A: Ord, C: Ord> std::iter::Iterator for IntoIter<A, C> {
+    type Item = Dot<A, C>;
 
-    fn next(&mut self) -> Option<Dot<A>> {
+    fn next(&mut self) -> Option<Dot<A, C>> {
         self.btree_iter
             .next()
             .map(|(actor, counter)| Dot::new(actor, counter))
     }
 }
 
-impl<A: Ord> std::iter::IntoIterator for VClock<A> {
-    type Item = Dot<A>;
-    type IntoIter = IntoIter<A>;
+impl<A: Ord, C: Ord> std::iter::IntoIterator for VClock<A, C> {
+    type Item = Dot<A, C>;
+    type IntoIter = IntoIter<A, C>;
 
     /// Consumes the vclock and returns an iterator over dots in the clock
     fn into_iter(self) -> Self::IntoIter {
@@ -304,8 +328,10 @@ impl<A: Ord> std::iter::IntoIterator for VClock<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> std::iter::FromIterator<Dot<A>> for VClock<A> {
-    fn from_iter<I: IntoIterator<Item = Dot<A>>>(iter: I) -> Self {
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num>
+    std::iter::FromIterator<Dot<A, C>> for VClock<A, C>
+{
+    fn from_iter<I: IntoIterator<Item = Dot<A, C>>>(iter: I) -> Self {
         let mut clock = VClock::default();
 
         for dot in iter {
@@ -316,15 +342,21 @@ impl<A: Ord + Clone + Debug> std::iter::FromIterator<Dot<A>> for VClock<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> From<Dot<A>> for VClock<A> {
-    fn from(dot: Dot<A>) -> Self {
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> From<Dot<A, C>>
+    for VClock<A, C>
+{
+    fn from(dot: Dot<A, C>) -> Self {
         let mut clock = VClock::default();
         clock.apply(dot);
         clock
     }
 }
 
-impl<A: Ord + Clone + Debug + Arbitrary> Arbitrary for VClock<A> {
+impl<A, C> Arbitrary for VClock<A, C>
+where
+    A: Arbitrary + Ord + Clone + Debug,
+    C: Arbitrary + Ord + Clone + Debug + Display + Num + FromPrimitive,
+{
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let mut clock = VClock::default();
 

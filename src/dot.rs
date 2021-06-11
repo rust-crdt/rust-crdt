@@ -2,58 +2,61 @@ use std::cmp::{Ordering, PartialOrd};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
+use num::traits::{FromPrimitive, Num, NumAssign};
 use serde::{Deserialize, Serialize};
 
 use crate::quickcheck::{Arbitrary, Gen};
 
 /// Dot is a version marker for a single actor
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Dot<A> {
+pub struct Dot<A, C = u64> {
     /// The actor identifier
     pub actor: A,
     /// The current version of this actor
-    pub counter: u64,
+    pub counter: C,
 }
 
-impl<A> Dot<A> {
+impl<A, C> Dot<A, C> {
     /// Build a Dot from an actor and counter
-    pub fn new(actor: A, counter: u64) -> Self {
+    pub fn new(actor: A, counter: C) -> Self {
         Self { actor, counter }
     }
+}
 
+impl<A, C: NumAssign> Dot<A, C> {
     /// Increment this dot's counter
     pub fn apply_inc(&mut self) {
-        self.counter += 1;
+        self.counter += C::one();
     }
 }
 
-impl<A: Clone> Dot<A> {
+impl<A: Clone, C: Clone + Num> Dot<A, C> {
     /// Generate the successor of this dot
     pub fn inc(&self) -> Self {
         Self {
             actor: self.actor.clone(),
-            counter: self.counter + 1,
+            counter: self.counter.clone() + C::one(),
         }
     }
 }
-impl<A: Copy> Copy for Dot<A> {}
+impl<A: Copy, C: Copy> Copy for Dot<A, C> {}
 
-impl<A: PartialEq> PartialEq for Dot<A> {
+impl<A: PartialEq, C: PartialEq> PartialEq for Dot<A, C> {
     fn eq(&self, other: &Self) -> bool {
         self.actor == other.actor && self.counter == other.counter
     }
 }
 
-impl<A: Eq> Eq for Dot<A> {}
+impl<A: Eq, C: Eq> Eq for Dot<A, C> {}
 
-impl<A: Hash> Hash for Dot<A> {
+impl<A: Hash, C: Hash> Hash for Dot<A, C> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.actor.hash(state);
         self.counter.hash(state);
     }
 }
 
-impl<A: PartialOrd> PartialOrd for Dot<A> {
+impl<A: PartialOrd, C: PartialOrd> PartialOrd for Dot<A, C> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.actor == other.actor {
             self.counter.partial_cmp(&other.counter)
@@ -63,31 +66,36 @@ impl<A: PartialOrd> PartialOrd for Dot<A> {
     }
 }
 
-impl<A: fmt::Debug> fmt::Debug for Dot<A> {
+impl<A: fmt::Debug, C: fmt::Debug> fmt::Debug for Dot<A, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}.{:?}", self.actor, self.counter)
     }
 }
 
-impl<A> From<(A, u64)> for Dot<A> {
-    fn from(dot_material: (A, u64)) -> Self {
+impl<A, C> From<(A, C)> for Dot<A, C> {
+    fn from(dot_material: (A, C)) -> Self {
         let (actor, counter) = dot_material;
         Self { actor, counter }
     }
 }
 
-impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
+impl<A: Arbitrary + Clone, C: Arbitrary + Clone + Num + FromPrimitive + PartialOrd> Arbitrary
+    for Dot<A, C>
+{
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         Dot {
             actor: A::arbitrary(g),
-            counter: u64::arbitrary(g) % 50,
+            counter: C::arbitrary(g) % C::from_u8(50).unwrap(),
         }
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let mut shrunk_dots = Vec::new();
-        if self.counter > 0 {
-            shrunk_dots.push(Self::new(self.actor.clone(), self.counter - 1));
+        if self.counter > C::zero() {
+            shrunk_dots.push(Self::new(
+                self.actor.clone(),
+                self.counter.clone() - C::one(),
+            ));
         }
         Box::new(shrunk_dots.into_iter())
     }
@@ -96,38 +104,38 @@ impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
 /// An ordered dot.
 /// dot's are first ordered by actor, dots from the same actor are ordered by counter.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct OrdDot<A: Ord> {
+pub struct OrdDot<A: Ord, C: Ord = u64> {
     /// The actor who created this dot.
     pub actor: A,
     /// The current counter of this actor.
-    pub counter: u64,
+    pub counter: C,
 }
 
-impl<A: Ord> From<OrdDot<A>> for Dot<A> {
-    fn from(OrdDot { actor, counter }: OrdDot<A>) -> Self {
+impl<A: Ord, C: Ord> From<OrdDot<A, C>> for Dot<A, C> {
+    fn from(OrdDot { actor, counter }: OrdDot<A, C>) -> Self {
         Self { actor, counter }
     }
 }
 
-impl<A: Ord> From<Dot<A>> for OrdDot<A> {
-    fn from(Dot { actor, counter }: Dot<A>) -> Self {
+impl<A: Ord, C: Ord> From<Dot<A, C>> for OrdDot<A, C> {
+    fn from(Dot { actor, counter }: Dot<A, C>) -> Self {
         Self { actor, counter }
     }
 }
 
 /// A type for modeling a range of Dot's from one actor.
 #[derive(Debug, PartialEq, Eq)]
-pub struct DotRange<A> {
+pub struct DotRange<A, C = u64> {
     /// The actor identifier
     pub actor: A,
     /// The counter range representing the dots:
     /// `Dot::new(actor, counter_range.start) .. Dot::new(actor, counter_range.end)`
     ///
     /// Start is inclusive, end is exclusive.
-    pub counter_range: core::ops::Range<u64>,
+    pub counter_range: core::ops::Range<C>,
 }
 
-impl<A: fmt::Debug> fmt::Display for DotRange<A> {
+impl<A: fmt::Debug, C: fmt::Display> fmt::Display for DotRange<A, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -137,7 +145,7 @@ impl<A: fmt::Debug> fmt::Display for DotRange<A> {
     }
 }
 
-impl<A: fmt::Debug> std::error::Error for DotRange<A> {}
+impl<A: fmt::Debug, C: fmt::Debug + fmt::Display> std::error::Error for DotRange<A, C> {}
 
 #[cfg(test)]
 mod test {
