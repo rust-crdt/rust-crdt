@@ -3,6 +3,7 @@ use core::convert::Infallible;
 use core::fmt::{self, Debug, Display};
 use core::mem;
 
+use num::Num;
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx};
@@ -30,23 +31,23 @@ use crate::{CmRDT, CvRDT, ResetRemove, VClock};
 /// assert_eq!(r1.read().val, vec!["bob", "alice"]);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MVReg<V, A: Ord> {
-    vals: Vec<(VClock<A>, V)>,
+pub struct MVReg<V, A: Ord, C = u64> {
+    vals: Vec<(VClock<A, C>, V)>,
 }
 
 /// Defines the set of operations over the MVReg
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Op<V, A: Ord> {
+pub enum Op<V, A: Ord, C = u64> {
     /// Put a value
     Put {
         /// context of the operation
-        clock: VClock<A>,
+        clock: VClock<A, C>,
         /// the value to put
         val: V,
     },
 }
 
-impl<V: Display, A: Ord + Display> Display for MVReg<V, A> {
+impl<V: Display, A: Ord + Display, C: Ord + Display> Display for MVReg<V, A, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "|")?;
         for (i, (ctx, val)) in self.vals.iter().enumerate() {
@@ -59,7 +60,7 @@ impl<V: Display, A: Ord + Display> Display for MVReg<V, A> {
     }
 }
 
-impl<V: PartialEq, A: Ord> PartialEq for MVReg<V, A> {
+impl<V: PartialEq, A: Ord, C: PartialEq> PartialEq for MVReg<V, A, C> {
     fn eq(&self, other: &Self) -> bool {
         for dot in self.vals.iter() {
             let num_found = other.vals.iter().filter(|d| d == &dot).count();
@@ -83,10 +84,10 @@ impl<V: PartialEq, A: Ord> PartialEq for MVReg<V, A> {
     }
 }
 
-impl<V: Eq, A: Ord> Eq for MVReg<V, A> {}
+impl<V: Eq, A: Ord, C: Eq> Eq for MVReg<V, A, C> {}
 
-impl<V, A: Ord> ResetRemove<A> for MVReg<V, A> {
-    fn reset_remove(&mut self, clock: &VClock<A>) {
+impl<V, A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for MVReg<V, A, C> {
+    fn reset_remove(&mut self, clock: &VClock<A, C>) {
         self.vals = mem::take(&mut self.vals)
             .into_iter()
             .filter_map(|(mut val_clock, val)| {
@@ -101,13 +102,13 @@ impl<V, A: Ord> ResetRemove<A> for MVReg<V, A> {
     }
 }
 
-impl<V, A: Ord> Default for MVReg<V, A> {
+impl<V, A: Ord, C> Default for MVReg<V, A, C> {
     fn default() -> Self {
         Self { vals: Vec::new() }
     }
 }
 
-impl<V, A: Ord> CvRDT for MVReg<V, A> {
+impl<V, A: Ord, C: Ord + Num> CvRDT for MVReg<V, A, C> {
     type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
@@ -131,8 +132,8 @@ impl<V, A: Ord> CvRDT for MVReg<V, A> {
     }
 }
 
-impl<V, A: Ord> CmRDT for MVReg<V, A> {
-    type Op = Op<V, A>;
+impl<V, A: Ord, C: Ord + Num> CmRDT for MVReg<V, A, C> {
+    type Op = Op<V, A, C>;
     type Validation = Infallible;
 
     fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
@@ -175,14 +176,14 @@ impl<V, A: Ord> CmRDT for MVReg<V, A> {
     }
 }
 
-impl<V, A: Ord + Clone + Debug> MVReg<V, A> {
+impl<V, A: Ord + Clone + Debug, C: Ord + Debug> MVReg<V, A, C> {
     /// Construct a new empty MVReg
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Set the value of the register
-    pub fn write(&self, val: V, ctx: AddCtx<A>) -> Op<V, A> {
+    pub fn write(&self, val: V, ctx: AddCtx<A, C>) -> Op<V, A, C> {
         Op::Put {
             clock: ctx.clock,
             val,
@@ -190,9 +191,10 @@ impl<V, A: Ord + Clone + Debug> MVReg<V, A> {
     }
 
     /// Consumes the register and returns the values
-    pub fn read(&self) -> ReadCtx<Vec<V>, A>
+    pub fn read(&self) -> ReadCtx<Vec<V>, A, C>
     where
         V: Clone,
+        C: Clone + Num + Display,
     {
         let clock = self.clock();
         let concurrent_vals = self.vals.iter().cloned().map(|(_, v)| v).collect();
@@ -205,7 +207,10 @@ impl<V, A: Ord + Clone + Debug> MVReg<V, A> {
     }
 
     /// Retrieve the current read context
-    pub fn read_ctx(&self) -> ReadCtx<(), A> {
+    pub fn read_ctx(&self) -> ReadCtx<(), A, C>
+    where
+        C: Clone + Num + Display,
+    {
         let clock = self.clock();
         ReadCtx {
             add_clock: clock.clone(),
@@ -215,7 +220,10 @@ impl<V, A: Ord + Clone + Debug> MVReg<V, A> {
     }
 
     /// A clock with latest versions of all actors operating on this register
-    fn clock(&self) -> VClock<A> {
+    fn clock(&self) -> VClock<A, C>
+    where
+        C: Clone + Num + Display,
+    {
         self.vals
             .iter()
             .fold(VClock::new(), |mut accum_clock, (c, _)| {

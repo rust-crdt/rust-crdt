@@ -22,7 +22,7 @@ fn test_apply() {
 
 #[test]
 fn test_write_should_not_mutate_reg() {
-    let reg = MVReg::new();
+    let reg = MVReg::<_, _, u64>::new();
     let ctx = reg.read().derive_add_ctx("A");
     let op = reg.write(32, ctx);
     assert_eq!(reg, MVReg::new());
@@ -72,7 +72,7 @@ fn test_concurrent_update_with_same_value_dont_collapse_on_apply() {
 
 #[test]
 fn test_multi_val() {
-    let mut r1 = MVReg::new();
+    let mut r1 = MVReg::<_, _, u64>::new();
     let mut r2 = MVReg::new();
 
     r1.apply(r1.write(32, r1.read().derive_add_ctx("A")));
