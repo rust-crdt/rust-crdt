@@ -14,8 +14,8 @@ pub type Hash = [u8; 32];
 /// A node in the Merkle DAG
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Node<T> {
-    /// The parent nodes, addressed by their hash.
-    pub parents: BTreeSet<Hash>,
+    /// The child nodes, addressed by their hash.
+    pub children: BTreeSet<Hash>,
     /// The value stored at this node.
     pub value: T,
 }
@@ -23,13 +23,13 @@ pub struct Node<T> {
 impl<T: Sha3Hash> Node<T> {
     /// Compute the hash name of this node.
     ///
-    /// hash = sha3_256(parent1 <> parent2 <> .. <> parentN <> value)
+    /// hash = sha3_256(child1 <> child2 <> .. <> childN <> value)
     ///
-    /// Where parents are ordered lexigraphically.
+    /// Where children are ordered lexigraphically.
     pub fn hash(&self) -> Hash {
         let mut sha3 = Sha3::v256();
 
-        self.parents.iter().for_each(|p| sha3.update(p));
+        self.children.iter().for_each(|c| sha3.update(c));
         self.value.hash(&mut sha3);
 
         let mut hash = [0u8; 32];
@@ -74,10 +74,10 @@ impl<'a, T> Content<'a, T> {
 
 /// The MerkleReg is a Register CRDT that uses the Merkle DAG
 /// structure to track the current value(s) held by this register.
-/// The leaves of the Merkle DAG are the current values.
+/// The roots of the Merkle DAG are the current concurrent values.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MerkleReg<T> {
-    leaves: BTreeSet<Hash>,
+    roots: BTreeSet<Hash>,
     dag: BTreeMap<Hash, Node<T>>,
     orphans: BTreeMap<Hash, Node<T>>,
 }
@@ -85,7 +85,7 @@ pub struct MerkleReg<T> {
 impl<T> Default for MerkleReg<T> {
     fn default() -> Self {
         Self {
-            leaves: Default::default(),
+            roots: Default::default(),
             dag: Default::default(),
             orphans: Default::default(),
         }
@@ -102,36 +102,34 @@ impl<T> MerkleReg<T> {
     pub fn read(&self) -> Content<T> {
         Content {
             nodes: self
-                .leaves
+                .roots
                 .iter()
                 .copied()
-                .filter_map(|leaf| self.dag.get(&leaf).map(|node| (leaf, node)))
+                .filter_map(|root| self.dag.get(&root).map(|node| (root, node)))
                 .collect(),
         }
     }
 
-    /// Write the given value on top of the given parents.
-    pub fn write(&self, value: T, parents: BTreeSet<Hash>) -> Node<T> {
-        Node { value, parents }
+    /// Write the given value on top of the given children.
+    pub fn write(&self, value: T, children: BTreeSet<Hash>) -> Node<T> {
+        Node { value, children }
     }
 
     /// Retrieve a node in the Merkle DAG by it's hash.
     ///
-    /// Traverse the history the register by pair this method with the parents
-    /// of the nodes retrieved in Content::nodes().
+    /// Traverse the history of the register by pairing this method
+    /// with the children of the nodes retrieved in Content::nodes().
     pub fn node(&self, hash: Hash) -> Option<&Node<T>> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
     }
 
-    /// Returns the parents of a node
-    pub fn parents(&self, hash: Hash) -> Content<T> {
+    /// Returns the children of a node
+    pub fn children(&self, hash: Hash) -> Content<T> {
         let nodes = self.dag.get(&hash).map(|node| {
-            node.parents
+            node.children
                 .iter()
                 .copied()
-                .filter_map(|parent_hash| {
-                    self.dag.get(&parent_hash).map(|node| (parent_hash, node))
-                })
+                .filter_map(|child| self.dag.get(&child).map(|node| (child, node)))
                 .collect()
         });
 
@@ -140,13 +138,13 @@ impl<T> MerkleReg<T> {
         }
     }
 
-    /// Returns the children of a node
-    pub fn children(&self, hash: Hash) -> Content<T> {
-        let children = self
+    /// Returns the parents of a node
+    pub fn parents(&self, hash: Hash) -> Content<T> {
+        let parents = self
             .dag
             .iter()
             .filter_map(|(h, node)| {
-                if node.parents.contains(&hash) {
+                if node.children.contains(&hash) {
                     Some((*h, node))
                 } else {
                     None
@@ -154,15 +152,15 @@ impl<T> MerkleReg<T> {
             })
             .collect();
 
-        Content { nodes: children }
+        Content { nodes: parents }
     }
 
-    /// Returns the number of nodes who are visible, i.e. their parents have been seen.
+    /// Returns the number of nodes who are visible, i.e. their children have been seen.
     pub fn num_nodes(&self) -> usize {
         self.dag.len()
     }
 
-    /// Returns the number of nodes who are not visible due to missing parents.
+    /// Returns the number of nodes who are not visible due to missing children.
     pub fn num_orphans(&self) -> usize {
         self.orphans.len()
     }
@@ -175,9 +173,9 @@ impl<T> MerkleReg<T> {
 /// Validation errors that may occur when applying or merging MerkleReg
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationError {
-    /// The Op is attempting to insert a node with a parent we
+    /// The Op is attempting to insert a node with a child we
     /// haven't seen yet.
-    MissingParent(Hash),
+    MissingChild(Hash),
 }
 
 impl fmt::Display for ValidationError {
@@ -193,9 +191,9 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
     type Validation = ValidationError;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        for parent in op.parents.iter() {
-            if !self.dag.contains_key(parent) {
-                return Err(ValidationError::MissingParent(*parent));
+        for child in op.children.iter() {
+            if !self.dag.contains_key(child) {
+                return Err(ValidationError::MissingChild(*child));
             }
         }
         Ok(())
@@ -207,16 +205,17 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
             return;
         }
 
-        if self.all_hashes_seen(&node.parents) {
-            // This node will supercede any parents who happen to be leaves.
-            for parent in node.parents.iter() {
-                self.leaves.remove(parent);
+        if self.all_hashes_seen(&node.children) {
+            // Any children who happen to be roots will no longer be roots
+            // after this node is inserted.
+            for child in node.children.iter() {
+                self.roots.remove(child);
             }
 
-            // Since we have never seen this node before, it's guaranteed to be a leaf.
-            self.leaves.insert(node_hash);
+            // Since we have never seen this node before, it's guaranteed to be a root.
+            self.roots.insert(node_hash);
 
-            // It's safe to insert this node into the DAG since we've seen all parents already
+            // It is now safe to insert this node into the DAG since we've seen its children.
             self.dag.insert(node_hash, node);
 
             // Now check if inserting this node resolves any orphans nodes.
@@ -224,7 +223,7 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
             let hashes_that_are_now_ready_to_apply = self
                 .orphans
                 .iter()
-                .filter(|(_, node)| self.all_hashes_seen(&node.parents))
+                .filter(|(_, node)| self.all_hashes_seen(&node.children))
                 .map(|(hash, _)| hash)
                 .copied()
                 .collect::<Vec<_>>();
@@ -288,14 +287,14 @@ impl<T: Arbitrary + Sha3Hash> Arbitrary for MerkleReg<T> {
         let n_nodes = u8::arbitrary(g) % 12;
         for _ in 0..n_nodes {
             let value = T::arbitrary(g);
-            let mut parents = BTreeSet::new();
+            let mut children = BTreeSet::new();
             if !nodes.is_empty() {
-                let n_parents = u8::arbitrary(g) % 12;
-                for _ in 0..n_parents {
-                    parents.insert(nodes[usize::arbitrary(g) % nodes.len()].hash());
+                let n_children = u8::arbitrary(g) % 12;
+                for _ in 0..n_children {
+                    children.insert(nodes[usize::arbitrary(g) % nodes.len()].hash());
                 }
             }
-            let op = reg.write(value, parents);
+            let op = reg.write(value, children);
             nodes.push(op.clone());
             reg.apply(op)
         }
