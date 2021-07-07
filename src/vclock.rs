@@ -254,7 +254,7 @@ impl<A: Ord> VClock<A> {
     /// assert_eq!(c.get(&43), 0);
     /// ```
     pub fn glb(&mut self, other: &Self) {
-        self.dots = mem::replace(&mut self.dots, BTreeMap::new())
+        self.dots = mem::take(&mut self.dots)
             .into_iter()
             .filter_map(|(actor, count)| {
                 // Since an actor missing from the dots map has an implied

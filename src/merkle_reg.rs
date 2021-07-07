@@ -112,7 +112,7 @@ impl<T> MerkleReg<T> {
 
     /// Write the given value on top of the given children.
     pub fn write(&self, value: T, children: BTreeSet<Hash>) -> Node<T> {
-        Node { value, children }
+        Node { children, value }
     }
 
     /// Retrieve a node in the Merkle DAG by it's hash.
