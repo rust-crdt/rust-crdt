@@ -1,10 +1,6 @@
-
-let
-    pkgs = import <nixpkgs> {};
-in 
-pkgs.stdenv.mkDerivation {
-  name = "crdts";
-    buildInputs = [
-      (pkgs.rustChannelOf { channel = "stable"; }).rust
-    ];
+{ pkgs ? import <nixpkgs> {} }:
+pkgs.mkShell {
+  buildInputs = with pkgs; [
+    cargo
+  ];
 }
