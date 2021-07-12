@@ -1,6 +1,6 @@
 // Causality barrier
-// Keeps for each known peer, keeps track of the latest clock seen
-// And a set of messages that are from the future
+// For each known peer, keeps track of the latest clock seen
+// and a set of messages that are from the future
 // and outputs the full-in-order sequence of messages
 //
 //
@@ -16,28 +16,28 @@ use crate::Dot;
 
 /// Version Vector with Exceptions
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CausalityBarrier<A: Hash + Eq, T: CausalOp<A>> {
+struct CausalityBarrier<A: Hash + Eq, T: CausalOp<A>> {
     peers: HashMap<A, VectorEntry>,
     // TODO: this dot here keying the T comes from `T::happens_after()`
     //       Why do we need to store this,
-    pub buffer: HashMap<Dot<A>, T>,
+    buffer: HashMap<Dot<A>, T>,
 }
 
 type LogTime = u64;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct VectorEntry {
+struct VectorEntry {
     // The version of the next message we'd like to see
     next_version: LogTime,
     exceptions: HashSet<LogTime>,
 }
 
 impl VectorEntry {
-    pub fn new() -> Self {
+    fn new() -> Self {
         VectorEntry::default()
     }
 
-    pub fn increment(&mut self, clk: LogTime) {
+    fn increment(&mut self, clk: LogTime) {
         match clk.cmp(&self.next_version) {
             // We've resolved an exception
             Ordering::Less => {
@@ -52,13 +52,13 @@ impl VectorEntry {
         };
     }
 
-    pub fn is_ready(&self, clk: LogTime) -> bool {
+    fn is_ready(&self, clk: LogTime) -> bool {
         clk < self.next_version && self.no_exceptions(clk)
     }
 
     /// Calculate the difference between a remote VectorEntry and ours.
     /// Specifically, we want the set of operations we've seen that the remote hasn't
-    pub fn diff_from(&self, other: &Self) -> HashSet<LogTime> {
+    fn diff_from(&self, other: &Self) -> HashSet<LogTime> {
         // 1. Find (new) operations that we've seen locally that the remote hasn't
         let local_ops =
             (other.next_version..self.next_version).filter(|ix: &LogTime| self.no_exceptions(*ix));
@@ -74,7 +74,7 @@ impl VectorEntry {
     }
 }
 
-pub trait CausalOp<A> {
+trait CausalOp<A> {
     /// TODO: result should be a VClock<A> since an op could be dependant on a few different msgs
     /// If the result is Some(dot) then this operation cannot occur until the operation that
     /// occured at dot has.
@@ -94,11 +94,11 @@ impl<A: Hash + Eq, T: CausalOp<A>> Default for CausalityBarrier<A, T> {
 }
 
 impl<A: Hash + Clone + Eq, T: CausalOp<A>> CausalityBarrier<A, T> {
-    pub fn new() -> Self {
+    fn new() -> Self {
         CausalityBarrier::default()
     }
 
-    pub fn ingest(&mut self, op: T) -> Option<T> {
+    fn ingest(&mut self, op: T) -> Option<T> {
         let v = self.peers.entry(op.dot().actor).or_default();
         // Have we already seen this op?
         if v.is_ready(op.dot().counter) {
@@ -142,13 +142,13 @@ impl<A: Hash + Clone + Eq, T: CausalOp<A>> CausalityBarrier<A, T> {
         }
     }
 
-    pub fn expel(&mut self, op: T) -> T {
+    fn expel(&mut self, op: T) -> T {
         let v = self.peers.entry(op.dot().actor).or_default();
         v.increment(op.dot().counter);
         op
     }
 
-    pub fn diff_from(&self, other: &HashMap<A, VectorEntry>) -> HashMap<A, HashSet<LogTime>> {
+    fn diff_from(&self, other: &HashMap<A, VectorEntry>) -> HashMap<A, HashSet<LogTime>> {
         let mut ret = HashMap::new();
         for (site_id, entry) in self.peers.iter() {
             let e_diff = match other.get(site_id) {
@@ -160,7 +160,7 @@ impl<A: Hash + Clone + Eq, T: CausalOp<A>> CausalityBarrier<A, T> {
         ret
     }
 
-    pub fn vvwe(&self) -> HashMap<A, VectorEntry> {
+    fn vvwe(&self) -> HashMap<A, VectorEntry> {
         self.peers.clone()
     }
 }
@@ -178,7 +178,7 @@ mod test {
     }
 
     #[derive(PartialEq, Debug, Hash, Clone)]
-    pub struct CausalMessage {
+    struct CausalMessage {
         time: LogTime,
         local_id: SiteId,
         op: Op,
