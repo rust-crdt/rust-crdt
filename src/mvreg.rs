@@ -91,7 +91,7 @@ impl<V, A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for MVReg<V, A, C> {
         self.vals = mem::take(&mut self.vals)
             .into_iter()
             .filter_map(|(mut val_clock, val)| {
-                val_clock.reset_remove(&clock);
+                val_clock.reset_remove(clock);
                 if val_clock.is_empty() {
                     None // remove this value from the register
                 } else {

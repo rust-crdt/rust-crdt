@@ -88,8 +88,8 @@ impl<A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for VClock<A, C> {
     /// Forget any actors that have smaller counts than the
     /// count in the given vclock
     fn reset_remove(&mut self, other: &Self) {
-        for (actor, counter) in other.dots.iter() {
-            if counter >= &self.get(actor) {
+        for Dot { actor, counter } in other.iter() {
+            if counter >= self.get(actor) {
                 self.dots.remove(actor);
             }
         }
@@ -162,7 +162,7 @@ impl<A: Ord, C> VClock<A, C> {
         C: Ord + Clone + Num,
     {
         let mut cloned = self.clone();
-        cloned.reset_remove(&base_clock);
+        cloned.reset_remove(base_clock);
         cloned
     }
 
@@ -275,7 +275,7 @@ impl<A: Ord, C> VClock<A, C> {
         C: Ord + Clone + Num,
     {
         let zero = C::zero();
-        self.dots = mem::replace(&mut self.dots, BTreeMap::new())
+        self.dots = mem::take(&mut self.dots)
             .into_iter()
             .filter_map(|(actor, count)| {
                 // Since an actor missing from the dots map has an implied

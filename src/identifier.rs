@@ -74,10 +74,10 @@ impl<T: Clone + Ord + Eq> Identifier<T> {
     pub fn between(low: Option<&Self>, high: Option<&Self>, marker: T) -> Self {
         match (low, high) {
             (Some(low), Some(high)) => {
-                if low > high {
-                    return Self::between(Some(high), Some(low), marker);
-                } else if low == high {
-                    return high.clone();
+                match low.cmp(high) {
+                    Ordering::Greater => return Self::between(Some(high), Some(low), marker),
+                    Ordering::Equal => return high.clone(),
+                    _ => (),
                 }
 
                 // Walk both paths until we reach a fork, constructing the path between these
@@ -162,7 +162,8 @@ impl<T: Arbitrary> Arbitrary for Identifier<T> {
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let mut path = self.0.clone();
-        if let Some(_) = path.pop() {
+        let last_elem_opt = path.pop();
+        if last_elem_opt.is_some() {
             Box::new(std::iter::once(Self(path)))
         } else {
             Box::new(std::iter::empty())

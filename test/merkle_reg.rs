@@ -43,25 +43,25 @@ fn test_traverse_reg_history() {
 
     let node_c = nodes.pop().unwrap();
 
-    // check parents of node_c
-    let parents = reg.parents(node_c.hash());
-    assert_eq!(parents.hashes_and_nodes().count(), 2);
+    // check children of node_c
+    let children = reg.children(node_c.hash());
+    assert_eq!(children.hashes_and_nodes().count(), 2);
 
-    let mut hashes_and_nodes = parents.hashes_and_nodes();
-    let (parent_1, _) = hashes_and_nodes.next().unwrap();
-    let (parent_2, _) = hashes_and_nodes.next().unwrap();
-    assert_eq!(reg.node(parent_1).unwrap().value, "a");
-    assert_eq!(reg.node(parent_2).unwrap().value, "b");
+    let mut hashes_and_nodes = children.hashes_and_nodes();
+    let (child_1, _) = hashes_and_nodes.next().unwrap();
+    let (child_2, _) = hashes_and_nodes.next().unwrap();
+    assert_eq!(reg.node(child_1).unwrap().value, "a");
+    assert_eq!(reg.node(child_2).unwrap().value, "b");
 
-    // check children of node_a and node_b is node_c
-    let a_children = reg.children(a.hash());
-    let b_children = reg.children(b.hash());
+    // check parents of node_a and node_b is node_c
+    let a_parents = reg.parents(a.hash());
+    let b_parents = reg.parents(b.hash());
 
-    assert_eq!(a_children.hashes_and_nodes().count(), 1);
-    assert_eq!(b_children.hashes_and_nodes().count(), 1);
+    assert_eq!(a_parents.hashes_and_nodes().count(), 1);
+    assert_eq!(b_parents.hashes_and_nodes().count(), 1);
 
-    let a_hash_and_node = a_children.hashes_and_nodes().next().unwrap();
-    let b_hash_and_node = b_children.hashes_and_nodes().next().unwrap();
+    let a_hash_and_node = a_parents.hashes_and_nodes().next().unwrap();
+    let b_hash_and_node = b_parents.hashes_and_nodes().next().unwrap();
     assert_eq!(a_hash_and_node, b_hash_and_node);
     assert_eq!(reg.node(a_hash_and_node.0).unwrap().value, "c");
 }
