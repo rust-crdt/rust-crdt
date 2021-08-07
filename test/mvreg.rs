@@ -22,7 +22,7 @@ fn test_apply() {
 
 #[test]
 fn test_write_should_not_mutate_reg() {
-    let reg = MVReg::<_, _, u64>::new();
+    let reg = MVReg::new();
     let ctx = reg.read().derive_add_ctx("A");
     let op = reg.write(32, ctx);
     assert_eq!(reg, MVReg::new());
