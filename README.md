@@ -46,7 +46,7 @@ Looking over this partial order, we can derive a few other properties of CRDT's.
 
 ### How to use this library
 #### Interacting with the CRDT's
-Working with a CRDT is a bit different from datastructures you may be used to. Since we may be acting on data that is concurrently being edited by others, we need to make sure that your local edits only effect the data that you've seen.
+Working with a CRDT is a bit different from datastructures you may be used to. Since we may be acting on data that is concurrently being edited by others, we need to make sure that your local edits only affect the data that you've seen.
 
 ##### Bad way of interacting with CRDT's
 For example, if you clear a `Map`, we want to be able to say that this clear operation will only effect entries in the map that you are aware of. If you are not tracking this causal history of your edits correctly, you could end up deleting data that you are not aware of. e.g. a good way to lose data would be to do something like this:
