@@ -5,18 +5,19 @@ use std::fmt::{self, Debug, Display};
 use std::hash::Hash;
 use std::mem;
 
+use num::Num;
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx, RmCtx};
 use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// Val Trait alias to reduce redundancy in type decl.
-pub trait Val<A: Ord>: Clone + Default + ResetRemove<A> + CmRDT {}
+pub trait Val<A: Ord, C = u64>: Clone + Default + ResetRemove<A, C> + CmRDT {}
 
-impl<A, T> Val<A> for T
+impl<A, T, C> Val<A, C> for T
 where
     A: Ord,
-    T: Clone + Default + ResetRemove<A> + CmRDT,
+    T: Clone + Default + ResetRemove<A, C> + CmRDT,
 {
 }
 
@@ -30,18 +31,18 @@ where
 /// See examples/reset_remove.rs for an example of reset-remove semantics
 /// in action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Map<K: Ord, V: Val<A>, A: Ord + Hash> {
+pub struct Map<K: Ord, V: Val<A, C>, A: Ord + Hash, C: Hash + Eq = u64> {
     // This clock stores the current version of the Map, it should
     // be greator or equal to all Entry.clock's in the Map.
-    clock: VClock<A>,
-    entries: BTreeMap<K, Entry<V, A>>,
-    deferred: HashMap<VClock<A>, BTreeSet<K>>,
+    clock: VClock<A, C>,
+    entries: BTreeMap<K, Entry<V, A, C>>,
+    deferred: HashMap<VClock<A, C>, BTreeSet<K>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct Entry<V: Val<A>, A: Ord> {
+struct Entry<V: Val<A, C>, A: Ord, C = u64> {
     // The entry clock tells us which actors edited this entry.
-    clock: VClock<A>,
+    clock: VClock<A, C>,
 
     // The nested CRDT
     val: V,
@@ -49,18 +50,18 @@ struct Entry<V: Val<A>, A: Ord> {
 
 /// Operations which can be applied to the Map CRDT
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Op<K: Ord, V: Val<A>, A: Ord> {
+pub enum Op<K: Ord, V: Val<A, C>, A: Ord, C = u64> {
     /// Remove a key from the map
     Rm {
         /// The clock under which we will perform this remove
-        clock: VClock<A>,
+        clock: VClock<A, C>,
         /// Key to remove
         keyset: BTreeSet<K>,
     },
     /// Update an entry in the map
     Up {
         /// Actors version at the time of the update
-        dot: Dot<A>,
+        dot: Dot<A, C>,
         /// Key of the value to update
         key: K,
         /// The operation to apply on the value under `key`
@@ -68,7 +69,7 @@ pub enum Op<K: Ord, V: Val<A>, A: Ord> {
     },
 }
 
-impl<V: Val<A>, A: Ord> Default for Entry<V, A> {
+impl<V: Val<A, C>, A: Ord, C> Default for Entry<V, A, C> {
     fn default() -> Self {
         Self {
             clock: VClock::default(),
@@ -77,7 +78,7 @@ impl<V: Val<A>, A: Ord> Default for Entry<V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A>, A: Ord + Hash> Default for Map<K, V, A> {
+impl<K: Ord, V: Val<A, C>, A: Ord + Hash, C: Hash + Eq> Default for Map<K, V, A, C> {
     fn default() -> Self {
         Self {
             clock: Default::default(),
@@ -87,8 +88,10 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash> Default for Map<K, V, A> {
     }
 }
 
-impl<K: Ord, V: Val<A>, A: Ord + Hash> ResetRemove<A> for Map<K, V, A> {
-    fn reset_remove(&mut self, clock: &VClock<A>) {
+impl<K: Ord, V: Val<A, C>, A: Ord + Hash, C: Ord + Clone + Hash + Eq + Num> ResetRemove<A, C>
+    for Map<K, V, A, C>
+{
+    fn reset_remove(&mut self, clock: &VClock<A, C>) {
         self.entries = mem::take(&mut self.entries)
             .into_iter()
             .filter_map(|(key, mut entry)| {
@@ -120,30 +123,30 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash> ResetRemove<A> for Map<K, V, A> {
 
 /// The various validation errors that may occur when using a Map CRDT.
 #[derive(Debug, PartialEq, Eq)]
-pub enum CmRDTValidation<V: CmRDT, A> {
+pub enum CmRDTValidation<V: CmRDT, A, C = u64> {
     /// We are missing dots specified in the DotRange
-    SourceOrder(crate::DotRange<A>),
+    SourceOrder(crate::DotRange<A, C>),
 
     /// There is a validation error in the nested CRDT.
     Value(V::Validation),
 }
 
-impl<V: CmRDT + Debug, A: Debug> Display for CmRDTValidation<V, A> {
+impl<V: CmRDT + Debug, A: Debug, C: Debug> Display for CmRDTValidation<V, A, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self, f)
     }
 }
 
-impl<V: CmRDT + Debug, A: Debug> std::error::Error for CmRDTValidation<V, A> {}
+impl<V: CmRDT + Debug, A: Debug, C: Debug> std::error::Error for CmRDTValidation<V, A, C> {}
 
 /// The various validation errors that may occur when using a Map CRDT.
 #[derive(Debug, PartialEq, Eq)]
-pub enum CvRDTValidation<K, V: CvRDT, A> {
+pub enum CvRDTValidation<K, V: CvRDT, A, C = u64> {
     /// We've detected that two different members were inserted with the same dot.
     /// This can break associativity.
     DoubleSpentDot {
         /// The dot that was double spent
-        dot: Dot<A>,
+        dot: Dot<A, C>,
         /// Our member inserted with this dot
         our_key: K,
         /// Their member inserted with this dot
@@ -154,17 +157,26 @@ pub enum CvRDTValidation<K, V: CvRDT, A> {
     Value(V::Validation),
 }
 
-impl<K: Debug, V: CvRDT + Debug, A: Debug> Display for CvRDTValidation<K, V, A> {
+impl<K: Debug, V: CvRDT + Debug, A: Debug, C: Debug> Display for CvRDTValidation<K, V, A, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self, f)
     }
 }
 
-impl<K: Debug, V: CvRDT + Debug, A: Debug> std::error::Error for CvRDTValidation<K, V, A> {}
+impl<K: Debug, V: CvRDT + Debug, A: Debug, C: Debug> std::error::Error
+    for CvRDTValidation<K, V, A, C>
+{
+}
 
-impl<K: Ord, V: Val<A> + Debug, A: Ord + Hash + Clone + Debug> CmRDT for Map<K, V, A> {
-    type Op = Op<K, V, A>;
-    type Validation = CmRDTValidation<V, A>;
+impl<
+        K: Ord,
+        V: Val<A, C> + Debug,
+        A: Ord + Hash + Clone + Debug,
+        C: Ord + Clone + Debug + Display + Hash + Eq + Num,
+    > CmRDT for Map<K, V, A, C>
+{
+    type Op = Op<K, V, A, C>;
+    type Validation = CmRDTValidation<V, A, C>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
@@ -204,10 +216,14 @@ impl<K: Ord, V: Val<A> + Debug, A: Ord + Hash + Clone + Debug> CmRDT for Map<K, 
     }
 }
 
-impl<K: Ord + Clone + Debug, V: Val<A> + CvRDT + Debug, A: Ord + Hash + Clone + Debug> CvRDT
-    for Map<K, V, A>
+impl<
+        K: Ord + Clone + Debug,
+        V: Val<A, C> + CvRDT + Debug,
+        A: Ord + Hash + Clone + Debug,
+        C: Ord + Clone + Hash + Eq + Debug + Display + Num,
+    > CvRDT for Map<K, V, A, C>
 {
-    type Validation = CvRDTValidation<K, V, A>;
+    type Validation = CvRDTValidation<K, V, A, C>;
 
     fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
         for (key, entry) in self.entries.iter() {
@@ -315,14 +331,16 @@ impl<K: Ord + Clone + Debug, V: Val<A> + CvRDT + Debug, A: Ord + Hash + Clone + 
     }
 }
 
-impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
+impl<K: Ord, V: Val<A, C>, A: Ord + Hash + Clone, C: Ord + Clone + Hash + Eq + Num>
+    Map<K, V, A, C>
+{
     /// Constructs an empty Map
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Returns true if the map has no entries, false otherwise
-    pub fn is_empty(&self) -> ReadCtx<bool, A> {
+    pub fn is_empty(&self) -> ReadCtx<bool, A, C> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -331,7 +349,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     }
 
     /// Returns the number of entries in the Map
-    pub fn len(&self) -> ReadCtx<usize, A> {
+    pub fn len(&self) -> ReadCtx<usize, A, C> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -340,7 +358,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     }
 
     /// Retrieve value stored under a key
-    pub fn get(&self, key: &K) -> ReadCtx<Option<V>, A> {
+    pub fn get(&self, key: &K) -> ReadCtx<Option<V>, A, C> {
         let add_clock = self.clock.clone();
         let entry_opt = self.entries.get(key);
         ReadCtx {
@@ -361,9 +379,9 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     /// The `impl Into<K>` bound provides a nice way of providing an input key that
     /// can easily convert to the `Map`'s key. For example, we can call this function
     /// with `"hello": &str` and it can be converted to `String`.
-    pub fn update<F>(&self, key: impl Into<K>, ctx: AddCtx<A>, f: F) -> Op<K, V, A>
+    pub fn update<F>(&self, key: impl Into<K>, ctx: AddCtx<A, C>, f: F) -> Op<K, V, A, C>
     where
-        F: FnOnce(&V, AddCtx<A>) -> V::Op,
+        F: FnOnce(&V, AddCtx<A, C>) -> V::Op,
     {
         let key = key.into();
         let dot = ctx.dot.clone();
@@ -380,7 +398,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     /// The `impl Into<K>` bound provides a nice way of providing an input key that
     /// can easily convert to the `Map`'s key. For example, we can call this function
     /// with `"hello": &str` and it can be converted to `String`.
-    pub fn rm(&self, key: impl Into<K>, ctx: RmCtx<A>) -> Op<K, V, A> {
+    pub fn rm(&self, key: impl Into<K>, ctx: RmCtx<A, C>) -> Op<K, V, A, C> {
         let mut keyset = BTreeSet::new();
         keyset.insert(key.into());
         Op::Rm {
@@ -390,7 +408,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     }
 
     /// Retrieve the current read context
-    pub fn read_ctx(&self) -> ReadCtx<(), A> {
+    pub fn read_ctx(&self) -> ReadCtx<(), A, C> {
         ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: self.clock.clone(),
@@ -407,7 +425,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     }
 
     /// Apply a set of key removals given a clock.
-    fn apply_keyset_rm(&mut self, mut keyset: BTreeSet<K>, clock: VClock<A>) {
+    fn apply_keyset_rm(&mut self, mut keyset: BTreeSet<K>, clock: VClock<A, C>) {
         for key in keyset.iter() {
             if let Some(entry) = self.entries.get_mut(key) {
                 entry.clock.reset_remove(&clock);
@@ -470,7 +488,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     ///
     /// assert_eq!(keys, &[50, 100, 200]);
     /// ```
-    pub fn keys(&self) -> impl Iterator<Item = ReadCtx<&K, A>> {
+    pub fn keys(&self) -> impl Iterator<Item = ReadCtx<&K, A, C>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),
@@ -513,7 +531,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     ///
     /// assert_eq!(values, &["bar", "baz", "foo"]);
     /// ```
-    pub fn values(&self) -> impl Iterator<Item = ReadCtx<&V, A>> {
+    pub fn values(&self) -> impl Iterator<Item = ReadCtx<&V, A, C>> {
         self.entries.values().map(move |v| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),
@@ -556,7 +574,7 @@ impl<K: Ord, V: Val<A>, A: Ord + Hash + Clone> Map<K, V, A> {
     ///
     /// assert_eq!(items, &[(50, "bar"), (100, "foo"), (200, "baz")]);
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<(&K, &V), A>> {
+    pub fn iter(&self) -> impl Iterator<Item = ReadCtx<(&K, &V), A, C>> {
         self.entries.iter().map(move |(k, v)| ReadCtx {
             add_clock: self.clock.clone(),
             rm_clock: v.clock.clone(),

@@ -50,7 +50,7 @@ fn test_new() {
 
 #[test]
 fn test_is_empty() {
-    let mut site1 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
     assert!(site1.is_empty());
 
     let op = site1.insert_index(0, 'a', 'A');
@@ -60,7 +60,7 @@ fn test_is_empty() {
 
 #[test]
 fn test_append() {
-    let mut site1 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
     assert!(site1.is_empty());
 
     let op = site1.append('a', 0);
@@ -75,8 +75,8 @@ fn test_append() {
 
 #[test]
 fn test_out_of_order_inserts() {
-    let mut site1 = List::new();
-    let mut site2 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
+    let mut site2 = List::<_, _, u64>::new();
     let op1 = site1.insert_index(0, 'a', 0);
     site1.apply(op1.clone());
 
@@ -105,9 +105,9 @@ fn test_out_of_order_inserts() {
 
 #[test]
 fn test_concurrent_inserts_with_same_identifier_can_be_split() {
-    let mut list_a = List::new();
-    let mut list_b = List::new();
-    let mut list_c = List::new();
+    let mut list_a = List::<_, _, u64>::new();
+    let mut list_b = List::<_, _, u64>::new();
+    let mut list_c = List::<_, _, u64>::new();
 
     let op_a = list_a.insert_index(0, 'a', 'A');
     let op_b = list_b.insert_index(0, 'b', 'B');
@@ -128,7 +128,7 @@ fn test_concurrent_inserts_with_same_identifier_can_be_split() {
 
 #[test]
 fn test_append_mixed_with_inserts() {
-    let mut site1 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
     let op = site1.append('a', 0);
     site1.apply(op);
 
@@ -146,7 +146,7 @@ fn test_append_mixed_with_inserts() {
 
 #[test]
 fn test_delete_of_index() {
-    let mut site1 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
     let op = site1.insert_index(0, 'a', 0);
     site1.apply(op);
     let op = site1.insert_index(1, 'b', 0);
@@ -160,7 +160,7 @@ fn test_delete_of_index() {
 
 #[test]
 fn test_position() {
-    let mut site1 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
     let op = site1.append('a', 0);
     site1.apply(op);
     let op = site1.append('b', 0);
@@ -176,8 +176,8 @@ fn test_reapply_list_ops() {
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = List::new();
-    let mut site2 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
+    let mut site2 = List::<_, _, u64>::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
@@ -223,8 +223,8 @@ fn test_insert_followed_by_deletes() {
 
     let mut s1 = rng.sample_iter(Alphanumeric);
 
-    let mut site1 = List::new();
-    let mut site2 = List::new();
+    let mut site1 = List::<_, _, u64>::new();
+    let mut site2 = List::<_, _, u64>::new();
 
     for _ in 0..5000 {
         let c = s1.next().unwrap();
@@ -252,8 +252,8 @@ fn test_insert_followed_by_deletes() {
 
 #[test]
 fn test_mutual_insert_qc1() {
-    let mut site0 = List::new();
-    let mut site1 = List::new();
+    let mut site0 = List::<_, _, u64>::new();
+    let mut site1 = List::<_, _, u64>::new();
     let plan = vec![
         (8, 24, false),
         (23, 1, true),
@@ -289,7 +289,7 @@ fn test_deep_inserts() {
     // Previous implementations of the List depended on an exponential which would panic once the tree
     // reached a certain depth.
 
-    let mut site = List::new();
+    let mut site = List::<_, _, u64>::new();
 
     let mut vec = Vec::new();
     let n = 1000;
@@ -306,8 +306,8 @@ fn test_deep_inserts() {
 
 #[quickcheck]
 fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
-    let mut site0 = List::new();
-    let mut site1 = List::new();
+    let mut site0 = List::<_, _, u64>::new();
+    let mut site1 = List::<_, _, u64>::new();
     for (elem, idx, source_is_site0) in plan {
         let ((source, source_actor), replica) = if source_is_site0 {
             ((&mut site0, 0), &mut site1)

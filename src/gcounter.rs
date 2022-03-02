@@ -1,7 +1,10 @@
 use core::convert::Infallible;
-use core::fmt::Debug;
+use core::fmt::{Debug, Display};
 
-use num::bigint::BigUint;
+use num::{
+    bigint::{BigUint, ToBigUint},
+    traits::Num,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
@@ -25,11 +28,11 @@ use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 /// assert!(a.read() > b.read());
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
-pub struct GCounter<A: Ord> {
-    inner: VClock<A>,
+pub struct GCounter<A: Ord, C = u64> {
+    inner: VClock<A, C>,
 }
 
-impl<A: Ord> Default for GCounter<A> {
+impl<A: Ord, C> Default for GCounter<A, C> {
     fn default() -> Self {
         Self {
             inner: Default::default(),
@@ -37,8 +40,8 @@ impl<A: Ord> Default for GCounter<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> CmRDT for GCounter<A> {
-    type Op = Dot<A>;
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CmRDT for GCounter<A, C> {
+    type Op = Dot<A, C>;
     type Validation = Infallible;
 
     fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
@@ -50,7 +53,7 @@ impl<A: Ord + Clone + Debug> CmRDT for GCounter<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> CvRDT for GCounter<A> {
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CvRDT for GCounter<A, C> {
     type Validation = Infallible;
 
     fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
@@ -62,32 +65,43 @@ impl<A: Ord + Clone + Debug> CvRDT for GCounter<A> {
     }
 }
 
-impl<A: Ord> ResetRemove<A> for GCounter<A> {
-    fn reset_remove(&mut self, clock: &VClock<A>) {
-        self.inner.reset_remove(clock);
+impl<A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for GCounter<A, C> {
+    fn reset_remove(&mut self, clock: &VClock<A, C>) {
+        self.inner.reset_remove(&clock);
     }
 }
 
-impl<A: Ord + Clone> GCounter<A> {
+impl<A: Ord + Clone, C: Ord + Clone + Num> GCounter<A, C> {
     /// Produce a new `GCounter`.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Return a view of the inner vector clock.
+    pub fn inner(&self) -> &VClock<A, C> {
+        &self.inner
+    }
+
     /// Generate Op to increment the counter.
-    pub fn inc(&self, actor: A) -> Dot<A> {
+    pub fn inc(&self, actor: A) -> Dot<A, C> {
         self.inner.inc(actor)
     }
 
     /// Generate Op to increment the counter by a number of steps.
-    pub fn inc_many(&self, actor: A, steps: u64) -> Dot<A> {
+    pub fn inc_many(&self, actor: A, steps: C) -> Dot<A, C> {
         let steps = steps + self.inner.get(&actor);
         Dot::new(actor, steps)
     }
 
     /// Return the current sum of this counter.
-    pub fn read(&self) -> BigUint {
-        self.inner.iter().map(|dot| dot.counter).sum()
+    pub fn read(&self) -> BigUint
+    where
+        C: ToBigUint,
+    {
+        self.inner
+            .iter()
+            .map(|dot| dot.counter.to_biguint().unwrap())
+            .sum()
     }
 }
 
@@ -97,8 +111,8 @@ mod test {
 
     #[test]
     fn test_basic_by_one() {
-        let mut a = GCounter::new();
-        let mut b = GCounter::new();
+        let mut a = GCounter::<&str>::new();
+        let mut b = GCounter::<&str>::new();
         a.apply(a.inc("A"));
         b.apply(b.inc("B"));
 
@@ -114,7 +128,7 @@ mod test {
     fn test_basic_by_many() {
         let mut a = GCounter::new();
         let mut b = GCounter::new();
-        let steps = 3;
+        let steps = 3usize;
 
         a.apply(a.inc_many("A", steps));
         b.apply(b.inc_many("B", steps));

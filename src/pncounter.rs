@@ -1,6 +1,8 @@
 use num::bigint::BigInt;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
+
+use num::{bigint::ToBigUint, traits::Num};
 
 use crate::traits::{CmRDT, CvRDT, ResetRemove};
 use crate::{Dot, GCounter, VClock};
@@ -26,13 +28,13 @@ use crate::{Dot, GCounter, VClock};
 /// assert_eq!(a.read(), 2.into());
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
-pub struct PNCounter<A: Ord> {
-    p: GCounter<A>,
-    n: GCounter<A>,
+pub struct PNCounter<A: Ord, C = u64> {
+    p: GCounter<A, C>,
+    n: GCounter<A, C>,
 }
 
 /// The Direction of an Op.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Dir {
     /// signals that the op increments the counter
     Pos,
@@ -42,15 +44,15 @@ pub enum Dir {
 
 /// An Op which is produced through from mutating the counter
 /// Ship these ops to other replicas to have them sync up.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Op<A: Ord> {
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct Op<A: Ord, C = u64> {
     /// The witnessing dot for this op
-    pub dot: Dot<A>,
+    pub dot: Dot<A, C>,
     /// the direction to move the counter
     pub dir: Dir,
 }
 
-impl<A: Ord> Default for PNCounter<A> {
+impl<A: Ord, C> Default for PNCounter<A, C> {
     fn default() -> Self {
         Self {
             p: Default::default(),
@@ -59,9 +61,9 @@ impl<A: Ord> Default for PNCounter<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> CmRDT for PNCounter<A> {
-    type Op = Op<A>;
-    type Validation = <GCounter<A> as CmRDT>::Validation;
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CmRDT for PNCounter<A, C> {
+    type Op = Op<A, C>;
+    type Validation = <GCounter<A, C> as CmRDT>::Validation;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         match op {
@@ -78,8 +80,8 @@ impl<A: Ord + Clone + Debug> CmRDT for PNCounter<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> CvRDT for PNCounter<A> {
-    type Validation = <GCounter<A> as CvRDT>::Validation;
+impl<A: Ord + Clone + Debug, C: Ord + Clone + Debug + Display + Num> CvRDT for PNCounter<A, C> {
+    type Validation = <GCounter<A, C> as CvRDT>::Validation;
 
     fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
         self.p.validate_merge(&other.p)?;
@@ -92,21 +94,26 @@ impl<A: Ord + Clone + Debug> CvRDT for PNCounter<A> {
     }
 }
 
-impl<A: Ord> ResetRemove<A> for PNCounter<A> {
-    fn reset_remove(&mut self, clock: &VClock<A>) {
-        self.p.reset_remove(clock);
-        self.n.reset_remove(clock);
+impl<A: Ord, C: Ord + Clone + Num> ResetRemove<A, C> for PNCounter<A, C> {
+    fn reset_remove(&mut self, clock: &VClock<A, C>) {
+        self.p.reset_remove(&clock);
+        self.n.reset_remove(&clock);
     }
 }
 
-impl<A: Ord + Clone> PNCounter<A> {
+impl<A: Ord + Clone, C: Ord + Clone + Num> PNCounter<A, C> {
     /// Produce a new `PNCounter`.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Return a view of the inner vector clocks.
+    pub fn inner(&self) -> (&VClock<A, C>, &VClock<A, C>) {
+        (self.p.inner(), self.n.inner())
+    }
+
     /// Generate an Op to increment the counter.
-    pub fn inc(&self, actor: A) -> Op<A> {
+    pub fn inc(&self, actor: A) -> Op<A, C> {
         Op {
             dot: self.p.inc(actor),
             dir: Dir::Pos,
@@ -114,7 +121,7 @@ impl<A: Ord + Clone> PNCounter<A> {
     }
 
     /// Generate an Op to increment the counter.
-    pub fn dec(&self, actor: A) -> Op<A> {
+    pub fn dec(&self, actor: A) -> Op<A, C> {
         Op {
             dot: self.n.inc(actor),
             dir: Dir::Neg,
@@ -122,7 +129,7 @@ impl<A: Ord + Clone> PNCounter<A> {
     }
 
     /// Generate an Op to increment the counter by a number of steps.
-    pub fn inc_many(&self, actor: A, steps: u64) -> Op<A> {
+    pub fn inc_many(&self, actor: A, steps: C) -> Op<A, C> {
         Op {
             dot: self.p.inc_many(actor, steps),
             dir: Dir::Pos,
@@ -130,7 +137,7 @@ impl<A: Ord + Clone> PNCounter<A> {
     }
 
     /// Generate an Op to decrement the counter by a number of steps.
-    pub fn dec_many(&self, actor: A, steps: u64) -> Op<A> {
+    pub fn dec_many(&self, actor: A, steps: C) -> Op<A, C> {
         Op {
             dot: self.n.inc_many(actor, steps),
             dir: Dir::Neg,
@@ -138,7 +145,10 @@ impl<A: Ord + Clone> PNCounter<A> {
     }
 
     /// Return the current value of this counter (P-N).
-    pub fn read(&self) -> BigInt {
+    pub fn read(&self) -> BigInt
+    where
+        C: ToBigUint,
+    {
         let p: BigInt = self.p.read().into();
         let n: BigInt = self.n.read().into();
         p - n
@@ -198,7 +208,7 @@ mod test {
 
     #[test]
     fn test_basic_by_one() {
-        let mut a = PNCounter::new();
+        let mut a = PNCounter::<&str>::new();
         assert_eq!(a.read(), 0.into());
 
         a.apply(a.inc("A"));

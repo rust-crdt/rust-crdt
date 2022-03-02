@@ -11,7 +11,7 @@ use crate::{CmRDT, CvRDT};
 /// with divergence.
 ///
 /// `M` is a marker. It must grow monotonically *and* must be globally unique
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LWWReg<V, M> {
     /// `val` is the opaque element contained within this CRDT
     pub val: V,

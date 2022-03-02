@@ -42,8 +42,9 @@
 
 use core::fmt;
 use core::iter::FromIterator;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, hash::Hash};
 
+use num::Num;
 use serde::{Deserialize, Serialize};
 
 use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
@@ -54,40 +55,40 @@ use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct List<T, A: Ord> {
-    seq: BTreeMap<Identifier<OrdDot<A>>, T>,
-    clock: VClock<A>,
+pub struct List<T, A: Ord, C: Ord = u64> {
+    seq: BTreeMap<Identifier<OrdDot<A, C>>, T>,
+    clock: VClock<A, C>,
 }
 
 /// Operations that can be performed on a List
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Op<T, A: Ord> {
+pub enum Op<T, A: Ord, C = u64> {
     /// Insert an element
     Insert {
         /// The Identifier to insert at
-        id: Identifier<OrdDot<A>>,
+        id: Identifier<OrdDot<A, C>>,
         /// Element to insert
         val: T,
     },
     /// Delete an element
     Delete {
         /// The Identifier of the insertion we're removing
-        id: Identifier<OrdDot<A>>,
+        id: Identifier<OrdDot<A, C>>,
         /// id of site that issued delete
-        dot: Dot<A>,
+        dot: Dot<A, C>,
     },
 }
 
-impl<T, A: Ord + Clone + Eq> Op<T, A> {
+impl<T, A: Ord + Clone + Eq, C: Ord + Clone> Op<T, A, C> {
     /// Returns the Identifier this operation is concerning.
-    pub fn id(&self) -> &Identifier<OrdDot<A>> {
+    pub fn id(&self) -> &Identifier<OrdDot<A, C>> {
         match self {
             Op::Insert { id, .. } | Op::Delete { id, .. } => id,
         }
     }
 
     /// Return the Dot originating the operation.
-    pub fn dot(&self) -> Dot<A> {
+    pub fn dot(&self) -> Dot<A, C> {
         match self {
             Op::Insert { id, .. } => id.value().clone().into(),
             Op::Delete { dot, .. } => dot.clone(),
@@ -95,7 +96,7 @@ impl<T, A: Ord + Clone + Eq> Op<T, A> {
     }
 }
 
-impl<T, A: Ord> Default for List<T, A> {
+impl<T, A: Ord, C: Ord> Default for List<T, A, C> {
     fn default() -> Self {
         Self {
             seq: Default::default(),
@@ -104,7 +105,7 @@ impl<T, A: Ord> Default for List<T, A> {
     }
 }
 
-impl<T, A: Ord + Clone> List<T, A> {
+impl<T, A: Ord + Clone, C: Ord + Clone + Num> List<T, A, C> {
     /// Create an empty List
     pub fn new() -> Self {
         Self::default()
@@ -112,7 +113,7 @@ impl<T, A: Ord + Clone> List<T, A> {
 
     /// Generate an op to insert the given element at the given index.
     /// If `ix` is greater than the length of the List then it is appended to the end.
-    pub fn insert_index(&self, mut ix: usize, val: T, actor: A) -> Op<T, A> {
+    pub fn insert_index(&self, mut ix: usize, val: T, actor: A) -> Op<T, A, C> {
         ix = ix.min(self.seq.len());
         // TODO: replace this logic with BTreeMap::range()
         let (prev, next) = match ix.checked_sub(1) {
@@ -133,7 +134,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Create an op to insert an element at the end of the sequence.
-    pub fn append(&self, c: T, actor: A) -> Op<T, A> {
+    pub fn append(&self, c: T, actor: A) -> Op<T, A, C> {
         let ix = self.seq.len();
         self.insert_index(ix, c, actor)
     }
@@ -141,7 +142,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     /// Create an op to delete the element at the given index.
     ///
     /// Returns None if `ix` is out of bounds, i.e. `ix > self.len()`.
-    pub fn delete_index(&self, ix: usize, actor: A) -> Option<Op<T, A>> {
+    pub fn delete_index(&self, ix: usize, actor: A) -> Option<Op<T, A, C>> {
         self.seq.keys().nth(ix).cloned().map(|id| {
             let dot = self.clock.inc(actor);
             Op::Delete { id, dot }
@@ -169,7 +170,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     /// list.apply(list.append('c', 'A'));
     /// assert_eq!(list.read::<String>(), "abc");
     /// ```
-    pub fn read<'a, C: FromIterator<&'a T>>(&'a self) -> C {
+    pub fn read<'a, Co: FromIterator<&'a T>>(&'a self) -> Co {
         self.seq.values().collect()
     }
 
@@ -184,7 +185,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     /// list.apply(list.append(3, 'A'));
     /// assert_eq!(list.read_into::<Vec<_>>(), vec![1, 2, 3]);
     /// ```
-    pub fn read_into<C: FromIterator<T>>(self) -> C {
+    pub fn read_into<Co: FromIterator<T>>(self) -> Co {
         self.seq.into_iter().map(|(_, v)| v).collect()
     }
 
@@ -194,7 +195,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Get each elements identifier and value from the List.
-    pub fn iter_entries(&self) -> impl Iterator<Item = (&Identifier<OrdDot<A>>, &T)> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&Identifier<OrdDot<A, C>>, &T)> {
         self.seq.iter()
     }
 
@@ -204,7 +205,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Finds an element by its Identifier.
-    pub fn get(&self, id: &Identifier<OrdDot<A>>) -> Option<&T> {
+    pub fn get(&self, id: &Identifier<OrdDot<A, C>>) -> Option<&T> {
         self.seq.get(id)
     }
 
@@ -214,7 +215,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Get the first Entry of the sequence represented by the List.
-    pub fn first_entry(&self) -> Option<(&Identifier<OrdDot<A>>, &T)> {
+    pub fn first_entry(&self) -> Option<(&Identifier<OrdDot<A, C>>, &T)> {
         self.seq.iter().next()
     }
 
@@ -224,26 +225,28 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 
     /// Get the last Entry of the sequence represented by the List.
-    pub fn last_entry(&self) -> Option<(&Identifier<OrdDot<A>>, &T)> {
+    pub fn last_entry(&self) -> Option<(&Identifier<OrdDot<A, C>>, &T)> {
         self.seq.iter().rev().next()
     }
 
     /// Insert value with at the given identifier in the List
-    fn insert(&mut self, id: Identifier<OrdDot<A>>, val: T) {
+    fn insert(&mut self, id: Identifier<OrdDot<A, C>>, val: T) {
         // Inserts only have an impact if the identifier is not in the tree
         self.seq.entry(id).or_insert(val);
     }
 
     /// Remove the element with the given identifier from the List
-    fn delete(&mut self, id: &Identifier<OrdDot<A>>) {
+    fn delete(&mut self, id: &Identifier<OrdDot<A, C>>) {
         // Deletes only have an effect if the identifier is already in the tree
         self.seq.remove(id);
     }
 }
 
-impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
-    type Op = Op<T, A>;
-    type Validation = crate::DotRange<A>;
+impl<T, A: Ord + Clone + fmt::Debug, C: Ord + Clone + Num + fmt::Debug + fmt::Display> CmRDT
+    for List<T, A, C>
+{
+    type Op = Op<T, A, C>;
+    type Validation = crate::DotRange<A, C>;
 
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
         self.clock.validate_op(&op.dot())
