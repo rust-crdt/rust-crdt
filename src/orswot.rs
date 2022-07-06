@@ -444,7 +444,6 @@ impl<M: Debug, A: Ord + Hash + Debug> Debug for Op<M, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    extern crate rand;
 
     #[test]
     // a bug found with rust quickcheck where deferred operations

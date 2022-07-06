@@ -21,6 +21,7 @@ pub mod lwwreg;
 pub mod mvreg;
 
 /// This module contains a Merkle-Dag Register.
+#[cfg(feature = "merkle")]
 pub mod merkle_reg;
 
 /// This module contains the Vector Clock
@@ -30,21 +31,25 @@ pub mod vclock;
 pub mod dot;
 
 /// This module contains a dense Identifier.
+#[cfg(feature = "num")]
 pub mod identifier;
 
 /// This module contains an Observed-Remove Set With Out Tombstones.
 pub mod orswot;
 
 /// This module contains a Grow-only Counter.
+#[cfg(feature = "num")]
 pub mod gcounter;
 
 /// This module contains a Grow-only Set.
 pub mod gset;
 
 /// This module contains a Grow-only List.
+#[cfg(feature = "num")]
 pub mod glist;
 
 /// This module contains a Positive-Negative Counter.
+#[cfg(feature = "num")]
 pub mod pncounter;
 
 /// This module contains a Map with Reset-Remove and Observed-Remove semantics.
@@ -54,18 +59,23 @@ pub mod map;
 pub mod ctx;
 
 /// This module contains a Sequence.
+#[cfg(feature = "num")]
 pub mod list;
+
+#[cfg(feature = "num")]
+pub use {
+    gcounter::GCounter, glist::GList, identifier::Identifier, list::List, pncounter::PNCounter,
+};
 
 // /// Version Vector with Exceptions
 // pub mod vvwe;
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
-    dot::Dot, dot::DotRange, dot::OrdDot, gcounter::GCounter, gset::GSet, identifier::Identifier,
-    list::List, lwwreg::LWWReg, map::Map, mvreg::MVReg, orswot::Orswot, pncounter::PNCounter,
-    vclock::VClock,
+    dot::Dot, dot::DotRange, dot::OrdDot, gset::GSet, lwwreg::LWWReg, map::Map, mvreg::MVReg,
+    orswot::Orswot, vclock::VClock,
 };
 
-/// A re-export of the quickcheck crate for use in property based testing of user code
+/// A re-export of the quickcheck crate for external property tests
 #[cfg(feature = "quickcheck")]
 pub use quickcheck;

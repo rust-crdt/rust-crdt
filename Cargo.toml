@@ -16,20 +16,27 @@ name = "test"
 path = "test/test.rs"
 
 [features]
-default = ["quickcheck"]
+default = ["quickcheck", "num", "merkle"]
 quickcheck = ["dep:quickcheck"]
+num = ["dep:num"]
+merkle = ["dep:tiny-keccak"]
 
 [dependencies]
-num = {version = "0.3.1", features = ["serde"]}
 serde = { version = "~1.0.91", features = ["derive"] }
-rand = "0.7"
+
+# glist, list, pncounter, gcounter
+num = {version = "0.3.1", features = ["serde"], optional = true}
+
+# merkle-reg
+tiny-keccak = { version = "2.0.2", features = ["sha3"], optional = true }
+
+# testing
 quickcheck = {version = "0.9", optional = true}
-tiny-keccak = { version = "2.0.2", features = ["sha3"] }
 
 [dev-dependencies]
-crdts = { path = ".", features = ["quickcheck"] }
 quickcheck_macros = "0.9"
 derive_more = "0.99"
+rand = "0.7"
 
 [profile.release]
 debug = true
