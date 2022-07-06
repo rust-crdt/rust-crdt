@@ -4,8 +4,6 @@ use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Serialize};
 
-use crate::quickcheck::{Arbitrary, Gen};
-
 /// Dot is a version marker for a single actor
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Dot<A> {
@@ -76,6 +74,10 @@ impl<A> From<(A, u64)> for Dot<A> {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         Dot {

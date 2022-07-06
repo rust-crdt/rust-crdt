@@ -2,7 +2,6 @@ use core::convert::Infallible;
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
 
-use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 use tiny_keccak::{Hasher, Sha3};
 
@@ -279,6 +278,10 @@ impl<T: AsRef<[u8]>> Sha3Hash for T {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<T: Arbitrary + Sha3Hash> Arbitrary for MerkleReg<T> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let mut reg = MerkleReg::new();

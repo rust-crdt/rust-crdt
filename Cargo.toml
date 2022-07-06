@@ -9,19 +9,25 @@ repository = "https://github.com/rust-crdt/rust-crdt"
 documentation = "https://docs.rs/crdts"
 keywords = ["crdt", "data-structures", "distributed-systems", "vector-clock", "riak"]
 edition = "2018"
+resolver = "2"
 
 [[test]]
 name = "test"
 path = "test/test.rs"
 
+[features]
+default = ["quickcheck"]
+quickcheck = ["dep:quickcheck"]
+
 [dependencies]
 num = {version = "0.3.1", features = ["serde"]}
 serde = { version = "~1.0.91", features = ["derive"] }
 rand = "0.7"
-quickcheck = "0.9"
+quickcheck = {version = "0.9", optional = true}
 tiny-keccak = { version = "2.0.2", features = ["sha3"] }
 
 [dev-dependencies]
+crdts = { path = ".", features = ["quickcheck"] }
 quickcheck_macros = "0.9"
 derive_more = "0.99"
 

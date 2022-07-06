@@ -56,8 +56,8 @@ pub mod ctx;
 /// This module contains a Sequence.
 pub mod list;
 
-/// Version Vector with Exceptions
-pub mod vvwe;
+// /// Version Vector with Exceptions
+// pub mod vvwe;
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
@@ -67,4 +67,5 @@ pub use crate::{
 };
 
 /// A re-export of the quickcheck crate for use in property based testing of user code
+#[cfg(feature = "quickcheck")]
 pub use quickcheck;

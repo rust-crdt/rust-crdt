@@ -6,7 +6,6 @@ use core::iter::FromIterator;
 use core::ops::Bound::*;
 use std::collections::BTreeSet;
 
-use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 
 use crate::{CmRDT, CvRDT, Identifier};
@@ -149,6 +148,10 @@ impl<T: Ord> CvRDT for GList<T> {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<T: Arbitrary> Arbitrary for Op<T> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let id = Identifier::arbitrary(g);

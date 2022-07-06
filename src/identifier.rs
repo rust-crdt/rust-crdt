@@ -12,7 +12,6 @@ use core::cmp::Ordering;
 use core::fmt;
 
 use num::{BigRational, One, Zero};
-use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 
 fn rational_between(low: Option<&BigRational>, high: Option<&BigRational>) -> BigRational {
@@ -144,6 +143,10 @@ impl<T: fmt::Display> fmt::Display for Identifier<T> {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<T: Arbitrary> Arbitrary for Identifier<T> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let mut path = vec![];

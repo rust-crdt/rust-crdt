@@ -8,7 +8,6 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use crate::ctx::{AddCtx, ReadCtx, RmCtx};
-use crate::quickcheck::{Arbitrary, Gen};
 use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 /// `Orswot` is an add-biased or-set without tombstones ported from
@@ -366,6 +365,10 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<A: Ord + Hash + Arbitrary + Debug, M: Hash + Eq + Arbitrary> Arbitrary for Op<M, A> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let dot = Dot::arbitrary(g);

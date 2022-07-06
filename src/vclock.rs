@@ -20,7 +20,6 @@ use std::collections::{btree_map, BTreeMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::quickcheck::{Arbitrary, Gen};
 use crate::{CmRDT, CvRDT, Dot, DotRange, ResetRemove};
 
 /// A `VClock` is a standard vector clock.
@@ -324,6 +323,10 @@ impl<A: Ord + Clone + Debug> From<Dot<A>> for VClock<A> {
     }
 }
 
+#[cfg(feature = "quickcheck")]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(feature = "quickcheck")]
 impl<A: Ord + Clone + Debug + Arbitrary> Arbitrary for VClock<A> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let mut clock = VClock::default();
