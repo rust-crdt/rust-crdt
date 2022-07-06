@@ -6,8 +6,9 @@ type TKey = u8;
 type TVal = MVReg<u8, TActor>;
 type TOp = map::Op<TKey, Map<TKey, TVal, TActor>, TActor>;
 type TMap = Map<TKey, Map<TKey, TVal, TActor>, TActor>;
+type OpMaterial = (u8, u8, u8, u8, u8);
 
-fn build_ops(prims: (u8, Vec<(u8, u8, u8, u8, u8)>)) -> (TActor, Vec<TOp>) {
+fn build_ops(prims: (u8, Vec<OpMaterial>)) -> (TActor, Vec<TOp>) {
     let (actor, ops_data) = prims;
 
     let mut ops = Vec::new();
@@ -577,8 +578,8 @@ fn apply_ops(map: &mut TMap, ops: &[TOp]) {
 quickcheck! {
     // TODO: add test to show equivalence of merge and Op exchange
     fn prop_op_exchange_same_as_merge(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -603,8 +604,8 @@ quickcheck! {
     }
 
     fn prop_op_exchange_converges(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -631,9 +632,9 @@ quickcheck! {
     }
 
     fn prop_op_exchange_associative(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops3_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>),
+        ops3_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -664,7 +665,7 @@ quickcheck! {
     }
 
     fn prop_op_idempotent(
-        ops_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops_prim: (u8, Vec<OpMaterial>)
     ) -> bool {
         let ops = build_ops(ops_prim);
         let mut m = TMap::new();
@@ -677,9 +678,9 @@ quickcheck! {
     }
 
     fn prop_op_associative(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops3_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>),
+        ops3_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -711,9 +712,9 @@ quickcheck! {
 
 
     fn prop_merge_associative(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops3_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>),
+        ops3_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -745,8 +746,8 @@ quickcheck! {
     }
 
     fn prop_merge_commutative(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -774,8 +775,8 @@ quickcheck! {
 
 
     fn prop_merge_followed_by_merge(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>)
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -801,7 +802,7 @@ quickcheck! {
     }
 
     fn prop_merge_idempotent(
-        ops_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops_prim: (u8, Vec<OpMaterial>)
     ) -> bool {
         let ops = build_ops(ops_prim);
 
@@ -817,7 +818,7 @@ quickcheck! {
     }
 
     fn prop_reset_remove_with_empty_vclock_is_nop(
-        ops_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops_prim: (u8, Vec<OpMaterial>)
     ) -> bool {
         let ops = build_ops(ops_prim);
 
@@ -831,7 +832,7 @@ quickcheck! {
     }
 
     fn prop_reset_remove_with_map_clock_is_empty_map(
-        ops_prim: (u8, Vec<(u8, u8, u8, u8, u8)>)
+        ops_prim: (u8, Vec<OpMaterial>)
     ) -> bool {
         let mut m = TMap::new();
         apply_ops(&mut m, &build_ops(ops_prim).1);
@@ -845,8 +846,8 @@ quickcheck! {
     }
 
     fn prop_reset_remove_than_merge_same_as_merge_than_reset_remove(
-        ops1_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
-        ops2_prim: (u8, Vec<(u8, u8, u8, u8, u8)>),
+        ops1_prim: (u8, Vec<OpMaterial>),
+        ops2_prim: (u8, Vec<OpMaterial>),
         vclock: VClock<u8>
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);

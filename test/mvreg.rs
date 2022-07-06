@@ -115,7 +115,7 @@ fn ops_are_not_compatible(opss: &[&Vec<(u8, u8)>]) -> bool {
                 a_clock.apply(a_clock.inc(*a_actor));
                 b_clock.apply(b_clock.inc(*b_actor));
 
-                if b_clock.get(&a_actor) == a_clock.get(&a_actor) {
+                if b_clock.get(a_actor) == a_clock.get(a_actor) {
                     // this check is a bit broad as it's not a failure
                     // to insert the same value with the same actor version
                     // but for simplicity we reject those ops as well

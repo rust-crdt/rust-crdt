@@ -103,7 +103,7 @@ fn prop_ops_are_associative(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>, ops_c: Vec<O
 
     // a * b
     let mut glist_ab = glist_a;
-    for op in ops_b.clone() {
+    for op in ops_b {
         assert!(glist_ab.validate_op(&op).is_ok());
         glist_ab.apply(op);
     }
@@ -135,11 +135,11 @@ fn prop_merge_commute(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>) {
     let mut glist_a = GList::new();
     let mut glist_b = GList::new();
 
-    for op in ops_a.clone() {
+    for op in ops_a {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }
-    for op in ops_b.clone() {
+    for op in ops_b {
         assert!(glist_b.validate_op(&op).is_ok());
         glist_b.apply(op)
     }
@@ -157,7 +157,7 @@ fn prop_merge_associative(ops_a: Vec<Op<u8>>, ops_b: Vec<Op<u8>>, ops_c: Vec<Op<
     let mut glist_b = GList::new();
     let mut glist_c = GList::new();
 
-    for op in ops_a.clone() {
+    for op in ops_a {
         assert!(glist_a.validate_op(&op).is_ok());
         glist_a.apply(op)
     }

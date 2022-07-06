@@ -87,14 +87,14 @@ quickcheck! {
             let merged_members = merged.read().val;
 
             for ReadCtx { val, rm_clock, .. } in orswot_1.iter() {
-                if !merged_members.contains(&val) {
+                if !merged_members.contains(val) {
                     let mut val_clock = rm_clock.clone();
                     for op in ops_2.iter() {
                         match op {
                             Op::Rm { clock, .. } => val_clock.reset_remove(clock),
                             Op::Add { members, dot } => {
                                 if members.is_empty() {
-                                    val_clock.reset_remove(&dot.clone().into());
+                                    val_clock.reset_remove(&VClock::from(*dot));
                                 }
                             }
                         }
@@ -104,14 +104,14 @@ quickcheck! {
             }
 
             for ReadCtx { val, rm_clock, .. } in orswot_2.iter() {
-                if !merged_members.contains(&val) {
+                if !merged_members.contains(val) {
                     let mut val_clock = rm_clock.clone();
                     for op in ops_1.iter() {
                         match op {
                             Op::Rm { clock, .. } => val_clock.reset_remove(clock),
                             Op::Add { members, dot } => {
                                 if members.is_empty() {
-                                    val_clock.reset_remove(&dot.clone().into());
+                                    val_clock.reset_remove(&VClock::from(*dot));
                                 }
                             }
                         }
@@ -227,7 +227,7 @@ fn merge_clocks_of_identical_entries() {
     let mut final_clock = VClock::new();
     final_clock.apply(final_clock.inc("A"));
     final_clock.apply(final_clock.inc("B"));
-    assert_eq!(a.contains(&1).val, true);
+    assert!(a.contains(&1).val);
     assert_eq!(a.contains(&1).rm_clock, final_clock);
 }
 
