@@ -122,6 +122,11 @@ impl<T> MerkleReg<T> {
         self.dag.get(&hash).or_else(|| self.orphans.get(&hash))
     }
 
+    /// Iterator over all the nodes in the Merkle DAG.
+    pub fn all_nodes(&self) -> impl Iterator<Item = &Node<T>> {
+        self.dag.values()
+    }
+
     /// Returns the children of a node
     pub fn children(&self, hash: Hash) -> Content<T> {
         let nodes = self.dag.get(&hash).map(|node| {
