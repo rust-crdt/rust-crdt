@@ -177,7 +177,7 @@ fn test_identifier_position() {
     site1.apply(op_a.clone());
     let op_b = site1.append('b', 0);
     site1.apply(op_b.clone());
-		let op_c = site1.append('c', 0);
+    let op_c = site1.append('c', 0);
 
     assert_eq!(site1.position_entry(&op_a.id()), Some(0));
     assert_eq!(site1.position_entry(&op_b.id()), Some(1));
