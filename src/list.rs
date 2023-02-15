@@ -203,6 +203,13 @@ impl<T, A: Ord + Clone> List<T, A> {
         self.iter().nth(ix)
     }
 
+		/// Find an identifer by an index.
+		pub fn position_entry(&self, id: &Identifier<OrdDot<A>>) -> Option<usize> {
+			self.iter_entries()
+				.enumerate()
+				.find_map(|(ix, (ident, _))| if ident == id { Some (ix) } else { None })
+		}
+
     /// Finds an element by its Identifier.
     pub fn get(&self, id: &Identifier<OrdDot<A>>) -> Option<&T> {
         self.seq.get(id)
