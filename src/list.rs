@@ -185,7 +185,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     /// assert_eq!(list.read_into::<Vec<_>>(), vec![1, 2, 3]);
     /// ```
     pub fn read_into<C: FromIterator<T>>(self) -> C {
-        self.seq.into_iter().map(|(_, v)| v).collect()
+        self.seq.into_values().collect()
     }
 
     /// Get the elements represented by the List.
