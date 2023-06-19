@@ -117,7 +117,7 @@ impl<T: Ord + Clone> GList<T> {
 
     /// Get last element of the sequence represented by the list.
     pub fn last(&self) -> Option<&Identifier<T>> {
-        self.iter().rev().next()
+        self.iter().next_back()
     }
 }
 

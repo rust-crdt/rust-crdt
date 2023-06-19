@@ -232,7 +232,7 @@ impl<T, A: Ord + Clone> List<T, A> {
 
     /// Get the last Entry of the sequence represented by the List.
     pub fn last_entry(&self) -> Option<(&Identifier<OrdDot<A>>, &T)> {
-        self.seq.iter().rev().next()
+        self.seq.iter().next_back()
     }
 
     /// Insert value with at the given identifier in the List
