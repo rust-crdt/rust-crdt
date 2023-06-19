@@ -1,44 +1,38 @@
 use crdts::list::{List, Op};
 use crdts::CmRDT;
 use rand::distributions::Alphanumeric;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 
 type SiteId = u32;
 #[derive(Debug, Clone)]
 struct OperationList(pub Vec<Op<char, SiteId>>);
 
-use quickcheck::{Arbitrary, Gen, TestResult};
+use quickcheck::{Arbitrary, Gen};
 use quickcheck_macros::quickcheck;
 
 impl Arbitrary for OperationList {
-    fn arbitrary<G: Gen>(g: &mut G) -> OperationList {
+    fn arbitrary(g: &mut Gen) -> OperationList {
         let size = {
             let s = g.size();
             if s == 0 {
                 0
             } else {
-                g.gen_range(0, s)
+                usize::arbitrary(g) % s
             }
         };
 
-        let actor = g.gen();
+        let actor = SiteId::arbitrary(g);
         let mut site1 = List::new();
         let ops = (0..size)
             .filter_map(|_| {
-                if g.gen() || site1.is_empty() {
-                    let op = site1.delete_index(g.gen_range(0, site1.len() + 1), actor);
-                    site1.apply(op.clone()?);
-                    op
-                } else {
-                    let op = site1.delete_index(g.gen_range(0, site1.len()), actor);
-                    site1.apply(op.clone()?);
-                    op
-                }
+                let idx = usize::arbitrary(g) % (site1.len() + 1);
+                let op = site1.delete_index(idx, actor);
+                site1.apply(op.clone()?);
+                op
             })
             .collect();
         OperationList(ops)
     }
-    // implement shrinking ://
 }
 
 #[test]
@@ -70,7 +64,7 @@ fn test_append() {
     let op = site1.append('c', 0);
     site1.apply(op);
 
-    assert_eq!(site1.iter().collect::<String>(), "abc");
+    assert_eq!(String::from_iter(site1), "abc");
 }
 
 #[test]
@@ -98,9 +92,9 @@ fn test_out_of_order_inserts() {
         }
     }
 
-    let site1_items = site1.iter().collect::<String>();
+    let site1_items = String::from_iter(site1);
     assert_eq!(site1_items, "abc");
-    assert_eq!(site1_items, site2.iter().collect::<String>());
+    assert_eq!(site1_items, String::from_iter(site2));
 }
 
 #[test]
@@ -141,7 +135,7 @@ fn test_append_mixed_with_inserts() {
     let op = site1.insert_index(1, 'd', 0);
     site1.apply(op);
 
-    assert_eq!(site1.iter().collect::<String>(), "bdac");
+    assert_eq!(String::from_iter(site1), "bdac");
 }
 
 #[test]
@@ -151,11 +145,11 @@ fn test_delete_of_index() {
     site1.apply(op);
     let op = site1.insert_index(1, 'b', 0);
     site1.apply(op);
-    assert_eq!(site1.iter().collect::<String>(), "ab");
+    assert_eq!(String::from_iter(site1.iter()), "ab");
 
     let op = site1.delete_index(0, 0);
     site1.apply(op.unwrap());
-    assert_eq!(site1.iter().collect::<String>(), "b");
+    assert_eq!(String::from_iter(site1), "b");
 }
 
 #[test]
@@ -188,14 +182,13 @@ fn test_identifier_position() {
 fn test_reapply_list_ops() {
     let mut rng = rand::thread_rng();
 
-    let mut s1 = rng.sample_iter(Alphanumeric);
+    let s1 = rng.clone().sample_iter(Alphanumeric).map(char::from);
 
     let mut site1 = List::new();
     let mut site2 = List::new();
 
-    for _ in 0..5000 {
-        let c = s1.next().unwrap();
-        let ix = rng.gen_range(0, site1.len() + 1);
+    for c in s1.take(5000) {
+        let ix = rng.gen_range(0..site1.len() + 1);
         let insert_op = site1.insert_index(ix, c, 0);
         site1.apply(insert_op.clone());
 
@@ -217,32 +210,28 @@ fn test_reapply_list_ops() {
     assert!(
         site1.is_empty(),
         "site1 was not empty: {}",
-        site1.iter().collect::<String>()
+        String::from_iter(site1)
     );
     assert!(
         site2.is_empty(),
         "site2 was not empty: {}",
-        site2.iter().collect::<String>()
+        String::from_iter(site2)
     );
 
-    assert_eq!(
-        site2.iter().collect::<Vec<_>>(),
-        site1.iter().collect::<Vec<_>>()
-    );
+    assert_eq!(String::from_iter(site2), String::from_iter(site1));
 }
 
 #[test]
 fn test_insert_followed_by_deletes() {
     let mut rng = rand::thread_rng();
 
-    let mut s1 = rng.sample_iter(Alphanumeric);
+    let s1 = rng.clone().sample_iter(Alphanumeric).map(char::from);
 
     let mut site1 = List::new();
     let mut site2 = List::new();
 
-    for _ in 0..5000 {
-        let c = s1.next().unwrap();
-        let ix = rng.gen_range(0, site1.len() + 1);
+    for c in s1.take(5000) {
+        let ix = rng.gen_range(0..site1.len() + 1);
         let insert_op = site1.insert_index(ix, c, 0);
         site1.apply(insert_op.clone());
         site2.apply(insert_op);
@@ -255,12 +244,12 @@ fn test_insert_followed_by_deletes() {
     assert!(
         site1.is_empty(),
         "site1 was not empty: {}",
-        site1.iter().collect::<String>()
+        String::from_iter(site1)
     );
     assert!(
         site2.is_empty(),
         "site2 was not empty: {}",
-        site2.iter().collect::<String>()
+        String::from_iter(site2)
     );
 }
 
@@ -289,10 +278,7 @@ fn test_mutual_insert_qc1() {
         replica.apply(op);
     }
 
-    assert_eq!(
-        site0.iter().collect::<Vec<_>>(),
-        site1.iter().collect::<Vec<_>>()
-    );
+    assert_eq!(Vec::from_iter(site0), Vec::from_iter(site1));
 }
 
 #[test]
@@ -315,7 +301,7 @@ fn test_deep_inserts() {
         site.apply(op);
     }
     assert_eq!(site.len(), n);
-    assert_eq!(site.iter().cloned().collect::<Vec<_>>(), vec);
+    assert_eq!(Vec::from_iter(site), vec);
 }
 
 #[quickcheck]
@@ -334,16 +320,13 @@ fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
         replica.apply(op);
     }
 
-    assert_eq!(
-        site0.iter().collect::<Vec<_>>(),
-        site1.iter().collect::<Vec<_>>()
-    );
+    assert_eq!(Vec::from_iter(site0), Vec::from_iter(site1));
     true
 }
 
 #[quickcheck]
-fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResult {
-    let mut rng = quickcheck::StdThreadGen::new(1000);
+fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) {
+    let mut rng = rand::rngs::StdRng::seed_from_u64(1000);
     let mut op1 = op1.0.into_iter();
     let mut op2 = op2.0.into_iter();
 
@@ -376,14 +359,14 @@ fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) -> TestResul
         }
     }
 
-    let site1_text = site1.iter().collect::<String>();
-    let site2_text = site2.iter().collect::<String>();
+    let site1_text = String::from_iter(site1);
+    let site2_text = String::from_iter(site2);
 
-    TestResult::from_bool(site1_text == site2_text)
+    assert_eq!(site1_text, site2_text);
 }
 
 #[quickcheck]
-fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
+fn prop_ops_are_idempotent(ops: OperationList) {
     let mut site1 = List::new();
     let mut site2 = List::new();
 
@@ -396,14 +379,14 @@ fn prop_ops_are_idempotent(ops: OperationList) -> TestResult {
         site2.apply(op);
     }
 
-    let site1_text = site1.iter().collect::<String>();
-    let site2_text = site2.iter().collect::<String>();
+    let site1_text = String::from_iter(site1);
+    let site2_text = String::from_iter(site2);
 
-    TestResult::from_bool(site1_text == site2_text)
+    assert_eq!(site1_text, site2_text)
 }
 
 #[quickcheck]
-fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
+fn prop_len_is_proportional_to_ops(oplist: OperationList) {
     let mut expected_len = 0;
     let mut site1 = List::new();
 
@@ -415,5 +398,5 @@ fn prop_len_is_proportional_to_ops(oplist: OperationList) -> TestResult {
         site1.apply(op);
     }
 
-    TestResult::from_bool(site1.len() == expected_len)
+    assert_eq!(site1.len(), expected_len)
 }

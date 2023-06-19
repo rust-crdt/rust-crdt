@@ -79,7 +79,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<A: Arbitrary + Clone> Arbitrary for Dot<A> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         Dot {
             actor: A::arbitrary(g),
             counter: u64::arbitrary(g) % 50,

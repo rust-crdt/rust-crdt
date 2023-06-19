@@ -148,7 +148,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<T: Arbitrary> Arbitrary for Identifier<T> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         let mut path = vec![];
         for _ in 0..(u8::arbitrary(g) % 7) {
             let ordering_index_material: Vec<(i64, i64)> = Arbitrary::arbitrary(g);

@@ -370,7 +370,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<A: Ord + Hash + Arbitrary + Debug, M: Hash + Eq + Arbitrary> Arbitrary for Op<M, A> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         let dot = Dot::arbitrary(g);
         let clock = VClock::arbitrary(g);
 

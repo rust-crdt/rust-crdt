@@ -288,7 +288,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<T: Arbitrary + Sha3Hash> Arbitrary for MerkleReg<T> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         let mut reg = MerkleReg::new();
         let mut nodes: Vec<Node<_>> = Vec::new();
 

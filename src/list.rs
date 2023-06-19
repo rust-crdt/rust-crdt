@@ -277,3 +277,13 @@ impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
         }
     }
 }
+
+impl<T, A: Ord> IntoIterator for List<T, A> {
+    type Item = T;
+
+    type IntoIter = std::collections::btree_map::IntoValues<Identifier<OrdDot<A>>, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.seq.into_values()
+    }
+}

@@ -153,7 +153,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<T: Arbitrary> Arbitrary for Op<T> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         let id = Identifier::arbitrary(g);
         Op::Insert { id }
     }

@@ -328,7 +328,7 @@ use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
 impl<A: Ord + Clone + Debug + Arbitrary> Arbitrary for VClock<A> {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
         let mut clock = VClock::default();
 
         for _ in 0..u8::arbitrary(g) % 10 {
