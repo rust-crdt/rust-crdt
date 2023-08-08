@@ -209,6 +209,7 @@ fn test_reset_remove_semantics() {
 #[cfg(feature = "quickcheck")]
 mod prop_tests {
     use super::*;
+    use crdts::{ctx::ReadCtx, DotRange, ResetRemove};
     use quickcheck_macros::quickcheck;
 
     type Actor = u8;

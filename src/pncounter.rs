@@ -149,53 +149,6 @@ impl<A: Ord + Clone> PNCounter<A> {
 mod test {
     use super::*;
 
-    use std::collections::BTreeSet;
-
-    use quickcheck::quickcheck;
-
-    const ACTOR_MAX: u8 = 11;
-
-    fn build_op(prims: (u8, u64, bool)) -> Op<u8> {
-        let (actor, counter, dir_choice) = prims;
-        Op {
-            dot: Dot { actor, counter },
-            dir: if dir_choice { Dir::Pos } else { Dir::Neg },
-        }
-    }
-
-    quickcheck! {
-        fn prop_merge_converges(op_prims: Vec<(u8, u64, bool)>) -> bool {
-            let ops: Vec<Op<u8>> = op_prims.into_iter().map(build_op).collect();
-
-            let mut results = BTreeSet::new();
-
-            // Permute the interleaving of operations should converge.
-            // Largely taken directly from orswot
-            for i in 2..ACTOR_MAX {
-                let mut witnesses: Vec<PNCounter<u8>> =
-                    (0..i).map(|_| PNCounter::new()).collect();
-                for op in ops.iter() {
-                    let index = op.dot.actor as usize % i as usize;
-                    let witness = &mut witnesses[index];
-                    witness.apply(op.clone());
-                }
-                let mut merged = PNCounter::new();
-                for witness in witnesses.iter() {
-                    merged.merge(witness.clone());
-                }
-
-                results.insert(merged.read());
-                if results.len() > 1 {
-                    println!("opvec: {:?}", ops);
-                    println!("results: {:?}", results);
-                    println!("witnesses: {:?}", &witnesses);
-                    println!("merged: {:?}", merged);
-                }
-            }
-            results.len() == 1
-        }
-    }
-
     #[test]
     fn test_basic_by_one() {
         let mut a = PNCounter::new();
@@ -232,5 +185,54 @@ mod test {
 
         a.apply(a.inc_many("A", 1));
         assert_eq!(a.read(), (1 + steps).into());
+    }
+
+    #[cfg(feature = "quickcheck")]
+    mod prop_tests {
+        use super::*;
+        use std::collections::BTreeSet;
+
+        use quickcheck_macros::quickcheck;
+
+        const ACTOR_MAX: u8 = 11;
+
+        #[quickcheck]
+        fn prop_merge_converges(op_prims: Vec<(u8, u64, bool)>) -> bool {
+            let ops: Vec<Op<u8>> = op_prims.into_iter().map(build_op).collect();
+
+            let mut results = BTreeSet::new();
+
+            // Permute the interleaving of operations should converge.
+            // Largely taken directly from orswot
+            for i in 2..ACTOR_MAX {
+                let mut witnesses: Vec<PNCounter<u8>> = (0..i).map(|_| PNCounter::new()).collect();
+                for op in ops.iter() {
+                    let index = op.dot.actor as usize % i as usize;
+                    let witness = &mut witnesses[index];
+                    witness.apply(op.clone());
+                }
+                let mut merged = PNCounter::new();
+                for witness in witnesses.iter() {
+                    merged.merge(witness.clone());
+                }
+
+                results.insert(merged.read());
+                if results.len() > 1 {
+                    println!("opvec: {:?}", ops);
+                    println!("results: {:?}", results);
+                    println!("witnesses: {:?}", &witnesses);
+                    println!("merged: {:?}", merged);
+                }
+            }
+            results.len() == 1
+        }
+
+        fn build_op(prims: (u8, u64, bool)) -> Op<u8> {
+            let (actor, counter, dir_choice) = prims;
+            Op {
+                dot: Dot { actor, counter },
+                dir: if dir_choice { Dir::Pos } else { Dir::Neg },
+            }
+        }
     }
 }

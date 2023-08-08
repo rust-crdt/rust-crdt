@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crdts::merkle_reg::{Hash, MerkleReg, Node};
+use crdts::merkle_reg::MerkleReg;
 use crdts::CmRDT;
 
 #[test]
@@ -107,7 +107,10 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
 #[cfg(feature = "quickcheck")]
 mod prop_tests {
     use super::*;
-    use crdts::CvRDT;
+    use crdts::{
+        merkle_reg::{Hash, Node},
+        CvRDT,
+    };
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]

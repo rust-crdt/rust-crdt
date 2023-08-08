@@ -177,8 +177,6 @@ impl<T: Arbitrary> Arbitrary for Identifier<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
 
     #[test]
     fn test_adding_zero_node_makes_identifier_smaller() {
@@ -262,52 +260,63 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, marker: u8) -> TestResult {
-        let (id_min, id_max) = if id_a < id_b {
-            (id_a, id_b)
-        } else {
-            (id_b, id_a)
-        };
+    #[cfg(feature = "quickcheck")]
+    mod prop_tests {
+        use super::*;
+        use quickcheck::TestResult;
+        use quickcheck_macros::quickcheck;
 
-        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+        #[quickcheck]
+        fn prop_id_is_dense(id_a: Identifier<u8>, id_b: Identifier<u8>, marker: u8) -> TestResult {
+            let (id_min, id_max) = if id_a < id_b {
+                (id_a, id_b)
+            } else {
+                (id_b, id_a)
+            };
 
-        if id_min == id_max {
-            assert_eq!(id_min, id_mid);
-            assert_eq!(id_max, id_mid);
-        } else {
-            assert!(id_min < id_mid, "{} < {}", id_min, id_mid);
-            assert!(id_mid < id_max, "{} < {}", id_mid, id_max);
+            let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+
+            if id_min == id_max {
+                assert_eq!(id_min, id_mid);
+                assert_eq!(id_max, id_mid);
+            } else {
+                assert!(id_min < id_mid, "{} < {}", id_min, id_mid);
+                assert!(id_mid < id_max, "{} < {}", id_mid, id_max);
+            }
+
+            TestResult::passed()
         }
 
-        TestResult::passed()
-    }
+        #[quickcheck]
+        fn prop_id_ord_is_transitive(
+            id_a: Identifier<u8>,
+            id_b: Identifier<u8>,
+            id_c: Identifier<u8>,
+        ) {
+            let a_b_ord = id_a.cmp(&id_b);
+            let a_c_ord = id_a.cmp(&id_c);
+            let b_c_ord = id_b.cmp(&id_c);
 
-    #[quickcheck]
-    fn prop_id_ord_is_transitive(id_a: Identifier<u8>, id_b: Identifier<u8>, id_c: Identifier<u8>) {
-        let a_b_ord = id_a.cmp(&id_b);
-        let a_c_ord = id_a.cmp(&id_c);
-        let b_c_ord = id_b.cmp(&id_c);
-
-        if a_b_ord == b_c_ord {
-            assert_eq!(a_b_ord, a_c_ord);
+            if a_b_ord == b_c_ord {
+                assert_eq!(a_b_ord, a_c_ord);
+            }
+            if id_a == id_b {
+                assert_eq!(a_c_ord, b_c_ord);
+            }
         }
-        if id_a == id_b {
-            assert_eq!(a_c_ord, b_c_ord);
+
+        #[test]
+        fn test_id_is_dense_with_empty_identifier() {
+            let id_min = Identifier(vec![(BigRational::from_integer((-1000).into()), 65)]);
+            let id_max = Identifier(vec![]);
+            let marker = 0;
+
+            assert!(id_min < id_max);
+
+            let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
+            println!("mid: {}", id_mid);
+            assert!(id_min < id_mid);
+            assert!(id_mid < id_max);
         }
-    }
-
-    #[test]
-    fn test_id_is_dense_with_empty_identifier() {
-        let id_min = Identifier(vec![(BigRational::from_integer((-1000).into()), 65)]);
-        let id_max = Identifier(vec![]);
-        let marker = 0;
-
-        assert!(id_min < id_max);
-
-        let id_mid = Identifier::between(Some(&id_min), Some(&id_max), marker);
-        println!("mid: {}", id_mid);
-        assert!(id_min < id_mid);
-        assert!(id_mid < id_max);
     }
 }

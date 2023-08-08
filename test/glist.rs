@@ -1,7 +1,7 @@
 use num::BigRational;
 
-use crdts::glist::{GList, Op};
-use crdts::{CmRDT, CvRDT, Identifier};
+use crdts::glist::GList;
+use crdts::{CmRDT, Identifier};
 
 #[test]
 fn test_concurrent_inserts_with_same_identifier_can_be_split() {
@@ -58,6 +58,7 @@ fn test_insert_at_front() {
 #[cfg(feature = "quickcheck")]
 mod prop_tests {
     use super::*;
+    use crdts::{glist::Op, CvRDT};
     use quickcheck_macros::quickcheck;
 
     #[quickcheck]

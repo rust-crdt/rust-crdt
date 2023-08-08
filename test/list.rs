@@ -1,7 +1,7 @@
-use crdts::list::{List, Op};
+use crdts::list::List;
 use crdts::CmRDT;
 use rand::distributions::Alphanumeric;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
 type SiteId = u32;
 
@@ -277,8 +277,10 @@ fn test_deep_inserts() {
 #[cfg(feature = "quickcheck")]
 mod prop_tests {
     use super::*;
+    use crdts::list::Op;
     use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
+    use rand::SeedableRng;
 
     #[derive(Debug, Clone)]
     struct OperationList(pub Vec<Op<char, SiteId>>);
