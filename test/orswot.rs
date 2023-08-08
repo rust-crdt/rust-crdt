@@ -1,170 +1,9 @@
-extern crate crdts;
-extern crate rand;
-
-use crdts::{ctx::ReadCtx, orswot::Op, *};
+use crdts::orswot::Op;
+use crdts::{CmRDT, CvRDT, Dot, Map, Orswot, VClock};
 use std::collections::HashSet;
 use std::iter::once;
 
-const ACTOR_MAX: u8 = 11;
-
 type Member = u8;
-type Actor = u8;
-
-quickcheck! {
-    fn prop_validate_op(ops: Vec<Op<Member, Actor>>, op: Op<Member, Actor>) -> bool {
-        let mut orswot = Orswot::new();
-        for op in ops.clone() {
-            if orswot.validate_op(&op).is_ok() {
-                orswot.apply(op)
-            }
-        }
-
-        match op.clone() {
-            Op::Add { dot, members } => {
-                let expected_dot = orswot.clock().inc(dot.actor);
-                if dot < expected_dot {
-                    assert_eq!(orswot.validate_op(&op), Ok(()));
-                    let orswot_clone = orswot.clone();
-                    orswot.apply(op);
-                    assert_eq!(orswot, orswot_clone);
-                } else if dot == expected_dot {
-                    assert_eq!(orswot.validate_op(&op), Ok(()));
-                    orswot.apply(op);
-                    for member in members {
-                        let removed = ops.iter().any(|op| {
-                            if let Op::Rm { clock, members } = op {
-                                members.contains(&member) && clock.dot(dot.actor) >= dot
-                            } else {
-                                false
-                            }
-                        });
-
-                        assert!(removed || orswot.contains(&member).val);
-                    }
-                } else {
-                    assert_eq!(
-                       orswot.validate_op(&op),
-                       Err(DotRange {
-                           actor: dot.actor,
-                           counter_range: expected_dot.counter..dot.counter,
-                       })
-                    );
-                }
-            }
-            Op::Rm { .. } => assert_eq!(orswot.validate_op(&op), Ok(()))
-        }
-
-        true
-    }
-
-    fn prop_validate_merge(ops_1: Vec<Op<Member, Actor>>, ops_2: Vec<Op<Member, Actor>>) -> bool {
-        let mut orswot_1 = Orswot::new();
-        let mut orswot_2 = Orswot::new();
-
-        for op in ops_1.clone() {
-            if orswot_1.validate_op(&op).is_ok() {
-               orswot_1.apply(op)
-            }
-        }
-
-        for op in ops_2.clone() {
-            if orswot_2.validate_op(&op).is_ok() {
-                orswot_2.apply(op)
-            }
-        }
-
-        if orswot_1.validate_merge(&orswot_2).is_ok() {
-            assert_eq!(orswot_2.validate_merge(&orswot_1), Ok(()));
-        }
-
-        if orswot_2.validate_merge(&orswot_1).is_ok() {
-            assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
-        }
-
-        if orswot_1.validate_merge(&orswot_2).is_ok() {
-            let mut merged = orswot_1.clone();
-            merged.merge(orswot_2.clone());
-            let merged_members = merged.read().val;
-
-            for ReadCtx { val, rm_clock, .. } in orswot_1.iter() {
-                if !merged_members.contains(val) {
-                    let mut val_clock = rm_clock.clone();
-                    for op in ops_2.iter() {
-                        match op {
-                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
-                            Op::Add { members, dot } => {
-                                if members.is_empty() {
-                                    val_clock.reset_remove(&VClock::from(*dot));
-                                }
-                            }
-                        }
-                    }
-                    assert_eq!(val_clock, VClock::new());
-                }
-            }
-
-            for ReadCtx { val, rm_clock, .. } in orswot_2.iter() {
-                if !merged_members.contains(val) {
-                    let mut val_clock = rm_clock.clone();
-                    for op in ops_1.iter() {
-                        match op {
-                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
-                            Op::Add { members, dot } => {
-                                if members.is_empty() {
-                                    val_clock.reset_remove(&VClock::from(*dot));
-                                }
-                            }
-                        }
-                    }
-                    assert_eq!(val_clock, VClock::new());
-                }
-            }
-    }
-
-        true
-    }
-
-    fn prop_merge_converges(ops: Vec<Op<Member, Actor>>) -> bool {
-        // Different interleavings of ops applied to different
-        // orswots should all converge when merged. Apply the
-        // ops to increasing numbers of witnessing orswots,
-        // then merge them together and make sure they have
-        // all converged.
-        let mut result = None;
-        for i in 2..ACTOR_MAX {
-            let mut witnesses: Vec<Orswot<Member, Actor>> =
-                (0..i).map(|_| Orswot::new()).collect();
-            for op in ops.iter() {
-                let actor_opt = match op {
-                    Op::Add { dot, ..} => Some(dot.actor),
-                    Op::Rm { clock, ..} => clock.iter().next().map(|d| *d.actor) // any actor will do for Rm
-                };
-
-                if let Some(actor) = actor_opt {
-                    let witness = &mut witnesses[(actor % i) as usize];
-                    witness.apply(op.clone());
-                }
-            }
-
-            let mut merged = Orswot::new();
-            for witness in witnesses {
-                merged.merge(witness);
-            }
-
-            if let Some(ref prev_res) = result {
-                if prev_res != &merged {
-                    println!("opvec: {:?}", ops);
-                    println!("result: {:?}", result);
-                    println!("merged: {:?}", merged);
-                    return false;
-                };
-            } else {
-                result = Some(merged);
-            }
-        }
-        true
-    }
-}
 
 /// When two orswots have identical clocks, but different elements,
 /// any non-common elements will be dropped.  This highlights the
@@ -365,4 +204,169 @@ fn test_reset_remove_semantics() {
         m1.get(&101).val.unwrap().read().val,
         vec![2].into_iter().collect()
     );
+}
+
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    type Actor = u8;
+    const ACTOR_MAX: u8 = 11;
+
+    #[quickcheck]
+    fn prop_validate_op(ops: Vec<Op<Member, Actor>>, op: Op<Member, Actor>) -> bool {
+        let mut orswot = Orswot::new();
+        for op in ops.clone() {
+            if orswot.validate_op(&op).is_ok() {
+                orswot.apply(op)
+            }
+        }
+
+        match op.clone() {
+            Op::Add { dot, members } => {
+                let expected_dot = orswot.clock().inc(dot.actor);
+                if dot < expected_dot {
+                    assert_eq!(orswot.validate_op(&op), Ok(()));
+                    let orswot_clone = orswot.clone();
+                    orswot.apply(op);
+                    assert_eq!(orswot, orswot_clone);
+                } else if dot == expected_dot {
+                    assert_eq!(orswot.validate_op(&op), Ok(()));
+                    orswot.apply(op);
+                    for member in members {
+                        let removed = ops.iter().any(|op| {
+                            if let Op::Rm { clock, members } = op {
+                                members.contains(&member) && clock.dot(dot.actor) >= dot
+                            } else {
+                                false
+                            }
+                        });
+
+                        assert!(removed || orswot.contains(&member).val);
+                    }
+                } else {
+                    assert_eq!(
+                        orswot.validate_op(&op),
+                        Err(DotRange {
+                            actor: dot.actor,
+                            counter_range: expected_dot.counter..dot.counter,
+                        })
+                    );
+                }
+            }
+            Op::Rm { .. } => assert_eq!(orswot.validate_op(&op), Ok(())),
+        }
+
+        true
+    }
+
+    #[quickcheck]
+    fn prop_validate_merge(ops_1: Vec<Op<Member, Actor>>, ops_2: Vec<Op<Member, Actor>>) -> bool {
+        let mut orswot_1 = Orswot::new();
+        let mut orswot_2 = Orswot::new();
+
+        for op in ops_1.clone() {
+            if orswot_1.validate_op(&op).is_ok() {
+                orswot_1.apply(op)
+            }
+        }
+
+        for op in ops_2.clone() {
+            if orswot_2.validate_op(&op).is_ok() {
+                orswot_2.apply(op)
+            }
+        }
+
+        if orswot_1.validate_merge(&orswot_2).is_ok() {
+            assert_eq!(orswot_2.validate_merge(&orswot_1), Ok(()));
+        }
+
+        if orswot_2.validate_merge(&orswot_1).is_ok() {
+            assert_eq!(orswot_1.validate_merge(&orswot_2), Ok(()));
+        }
+
+        if orswot_1.validate_merge(&orswot_2).is_ok() {
+            let mut merged = orswot_1.clone();
+            merged.merge(orswot_2.clone());
+            let merged_members = merged.read().val;
+
+            for ReadCtx { val, rm_clock, .. } in orswot_1.iter() {
+                if !merged_members.contains(val) {
+                    let mut val_clock = rm_clock.clone();
+                    for op in ops_2.iter() {
+                        match op {
+                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
+                            Op::Add { members, dot } => {
+                                if members.is_empty() {
+                                    val_clock.reset_remove(&VClock::from(*dot));
+                                }
+                            }
+                        }
+                    }
+                    assert_eq!(val_clock, VClock::new());
+                }
+            }
+
+            for ReadCtx { val, rm_clock, .. } in orswot_2.iter() {
+                if !merged_members.contains(val) {
+                    let mut val_clock = rm_clock.clone();
+                    for op in ops_1.iter() {
+                        match op {
+                            Op::Rm { clock, .. } => val_clock.reset_remove(clock),
+                            Op::Add { members, dot } => {
+                                if members.is_empty() {
+                                    val_clock.reset_remove(&VClock::from(*dot));
+                                }
+                            }
+                        }
+                    }
+                    assert_eq!(val_clock, VClock::new());
+                }
+            }
+        }
+
+        true
+    }
+
+    #[quickcheck]
+    fn prop_merge_converges(ops: Vec<Op<Member, Actor>>) -> bool {
+        // Different interleavings of ops applied to different
+        // orswots should all converge when merged. Apply the
+        // ops to increasing numbers of witnessing orswots,
+        // then merge them together and make sure they have
+        // all converged.
+        let mut result = None;
+        for i in 2..ACTOR_MAX {
+            let mut witnesses: Vec<Orswot<Member, Actor>> = (0..i).map(|_| Orswot::new()).collect();
+            for op in ops.iter() {
+                let actor_opt = match op {
+                    Op::Add { dot, .. } => Some(dot.actor),
+                    Op::Rm { clock, .. } => clock.iter().next().map(|d| *d.actor), // any actor will do for Rm
+                };
+
+                if let Some(actor) = actor_opt {
+                    let witness = &mut witnesses[(actor % i) as usize];
+                    witness.apply(op.clone());
+                }
+            }
+
+            let mut merged = Orswot::new();
+            for witness in witnesses {
+                merged.merge(witness);
+            }
+
+            if let Some(ref prev_res) = result {
+                if prev_res != &merged {
+                    println!("opvec: {:?}", ops);
+                    println!("result: {:?}", result);
+                    println!("merged: {:?}", merged);
+                    return false;
+                };
+            } else {
+                result = Some(merged);
+            }
+        }
+        true
+    }
 }

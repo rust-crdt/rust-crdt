@@ -147,7 +147,7 @@ impl<A: fmt::Debug> fmt::Display for DotRange<A> {
 
 impl<A: fmt::Debug> std::error::Error for DotRange<A> {}
 
-#[cfg(test)]
+#[cfg(all(test, feature = "quickcheck"))]
 mod test {
     use super::*;
     use quickcheck_macros::quickcheck;

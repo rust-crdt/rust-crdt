@@ -1,9 +1,7 @@
 use std::collections::BTreeSet;
 
 use crdts::merkle_reg::{Hash, MerkleReg, Node};
-use crdts::{CmRDT, CvRDT};
-
-use quickcheck_macros::quickcheck;
+use crdts::CmRDT;
 
 #[test]
 fn test_write_resolves_fork() {
@@ -106,79 +104,86 @@ fn test_orphaned_nodes_grows_if_ops_are_applied_backwards() {
     assert_eq!(reg.num_orphans(), 0);
 }
 
-#[quickcheck]
-fn prop_op_reordering_converges(
-    concurrent_writes: Vec<Vec<(String, Vec<usize>)>>,
-    mut op_reordering: Vec<usize>,
-) {
-    let mut reg = MerkleReg::new();
-    let mut ops: Vec<Node<_>> = Vec::new();
-    let mut unique_nodes: BTreeSet<Hash> = BTreeSet::new();
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+    use crdts::CvRDT;
+    use quickcheck_macros::quickcheck;
 
-    for writes in concurrent_writes {
-        let mut concurrent_ops = Vec::new();
-        for (value, parent_indices) in writes {
-            let mut parents = BTreeSet::new();
-            if !ops.is_empty() {
-                for parent_index in parent_indices {
-                    parents.insert(ops[parent_index % ops.len()].hash());
+    #[quickcheck]
+    fn prop_op_reordering_converges(
+        concurrent_writes: Vec<Vec<(String, Vec<usize>)>>,
+        mut op_reordering: Vec<usize>,
+    ) {
+        let mut reg = MerkleReg::new();
+        let mut ops: Vec<Node<_>> = Vec::new();
+        let mut unique_nodes: BTreeSet<Hash> = BTreeSet::new();
+
+        for writes in concurrent_writes {
+            let mut concurrent_ops = Vec::new();
+            for (value, parent_indices) in writes {
+                let mut parents = BTreeSet::new();
+                if !ops.is_empty() {
+                    for parent_index in parent_indices {
+                        parents.insert(ops[parent_index % ops.len()].hash());
+                    }
                 }
+                concurrent_ops.push(reg.write(value, parents));
             }
-            concurrent_ops.push(reg.write(value, parents));
+            for op in concurrent_ops {
+                ops.push(op.clone());
+                unique_nodes.insert(op.hash());
+                reg.apply(op);
+            }
         }
-        for op in concurrent_ops {
-            ops.push(op.clone());
-            unique_nodes.insert(op.hash());
-            reg.apply(op);
+
+        assert_eq!(reg.num_nodes(), unique_nodes.len());
+
+        let mut reordered_reg = MerkleReg::new();
+        op_reordering.push(0);
+        let mut op_order = op_reordering.into_iter().cycle();
+        while !ops.is_empty() {
+            if let Some(idx) = op_order.next() {
+                let op = ops.remove(idx % ops.len());
+                reordered_reg.apply(op);
+            }
         }
+
+        assert_eq!(reg, reordered_reg);
+        assert_eq!(reordered_reg.num_nodes(), unique_nodes.len());
+        assert_eq!(reordered_reg.num_orphans(), 0);
     }
 
-    assert_eq!(reg.num_nodes(), unique_nodes.len());
+    #[quickcheck]
+    fn prop_merge_commute(mut reg_a: MerkleReg<String>, mut reg_b: MerkleReg<String>) {
+        let reg_a_snapshot = reg_a.clone();
 
-    let mut reordered_reg = MerkleReg::new();
-    op_reordering.push(0);
-    let mut op_order = op_reordering.into_iter().cycle();
-    while !ops.is_empty() {
-        if let Some(idx) = op_order.next() {
-            let op = ops.remove(idx % ops.len());
-            reordered_reg.apply(op);
-        }
+        // a * b
+        reg_a.merge(reg_b.clone());
+
+        // b * a
+        reg_b.merge(reg_a_snapshot);
+
+        assert_eq!(reg_a, reg_b);
     }
 
-    assert_eq!(reg, reordered_reg);
-    assert_eq!(reordered_reg.num_nodes(), unique_nodes.len());
-    assert_eq!(reordered_reg.num_orphans(), 0);
-}
+    #[quickcheck]
+    fn prop_merge_associative(
+        mut reg_a: MerkleReg<String>,
+        mut reg_b: MerkleReg<String>,
+        reg_c: MerkleReg<String>,
+    ) {
+        let mut reg_a_snapshot = reg_a.clone();
 
-#[quickcheck]
-fn prop_merge_commute(mut reg_a: MerkleReg<String>, mut reg_b: MerkleReg<String>) {
-    let reg_a_snapshot = reg_a.clone();
+        // (a * b) * c
+        reg_a.merge(reg_b.clone());
+        reg_a.merge(reg_c.clone());
 
-    // a * b
-    reg_a.merge(reg_b.clone());
+        // a * (b * c)
+        reg_b.merge(reg_c);
+        reg_a_snapshot.merge(reg_b);
 
-    // b * a
-    reg_b.merge(reg_a_snapshot);
-
-    assert_eq!(reg_a, reg_b);
-}
-
-#[quickcheck]
-fn prop_merge_associative(
-    mut reg_a: MerkleReg<String>,
-    mut reg_b: MerkleReg<String>,
-    reg_c: MerkleReg<String>,
-) {
-    let mut reg_a_snapshot = reg_a.clone();
-
-    // (a * b) * c
-    reg_a.merge(reg_b.clone());
-    reg_a.merge(reg_c.clone());
-
-    // a * (b * c)
-    reg_b.merge(reg_c);
-    reg_a_snapshot.merge(reg_b);
-
-    // (a * b) * c == a * (b * c)
-    assert_eq!(reg_a, reg_a_snapshot);
+        // (a * b) * c == a * (b * c)
+        assert_eq!(reg_a, reg_a_snapshot);
+    }
 }

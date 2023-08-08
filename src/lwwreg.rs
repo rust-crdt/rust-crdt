@@ -134,8 +134,6 @@ impl<V: PartialEq, M: Ord> LWWReg<V, M> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
 
     #[test]
     fn test_default() {
@@ -177,72 +175,81 @@ mod test {
         assert_eq!(reg, LWWReg { val: 32, marker: 2 });
     }
 
-    fn build_from_prim(prim: (u8, u16)) -> LWWReg<u8, (u16, u8)> {
-        // we make the marker a tuple so that we avoid conflicts
-        LWWReg {
-            val: prim.0,
-            marker: (prim.1, prim.0),
-        }
-    }
-
-    #[quickcheck]
-    fn prop_associative(r1_prim: (u8, u16), r2_prim: (u8, u16), r3_prim: (u8, u16)) -> TestResult {
-        let mut r1 = build_from_prim(r1_prim);
-        let mut r2 = build_from_prim(r2_prim);
-        let r3 = build_from_prim(r3_prim);
-
-        let has_conflicting_marker = (r1.marker == r2.marker && r1.val != r2.val)
-            || (r1.marker == r3.marker && r1.val != r3.val)
-            || (r2.marker == r3.marker && r2.val != r3.val);
-
-        if has_conflicting_marker {
-            return TestResult::discard();
-        }
-
-        let mut r1_snapshot = r1.clone();
-
-        // (r1 ^ r2) ^ r3
-        r1.merge(r2.clone());
-        r1.merge(r3.clone());
-
-        // r1 ^ (r2 ^ r3)
-        r2.merge(r3);
-        r1_snapshot.merge(r2);
-
-        // (r1 ^ r2) ^ r3 = r1 ^ (r2 ^ r3)
-        TestResult::from_bool(r1 == r1_snapshot)
-    }
-
     #[cfg(feature = "quickcheck")]
-    #[quickcheck]
-    fn prop_commutative(r1_prim: (u8, u16), r2_prim: (u8, u16)) -> TestResult {
-        let mut r1 = build_from_prim(r1_prim);
-        let mut r2 = build_from_prim(r2_prim);
+    mod prop_tests {
+        use super::*;
+        use quickcheck::TestResult;
+        use quickcheck_macros::quickcheck;
 
-        if r1.marker == r2.marker && r1.val != r2.val {
-            return TestResult::discard();
+        #[quickcheck]
+        fn prop_associative(
+            r1_prim: (u8, u16),
+            r2_prim: (u8, u16),
+            r3_prim: (u8, u16),
+        ) -> TestResult {
+            let mut r1 = build_from_prim(r1_prim);
+            let mut r2 = build_from_prim(r2_prim);
+            let r3 = build_from_prim(r3_prim);
+
+            let has_conflicting_marker = (r1.marker == r2.marker && r1.val != r2.val)
+                || (r1.marker == r3.marker && r1.val != r3.val)
+                || (r2.marker == r3.marker && r2.val != r3.val);
+
+            if has_conflicting_marker {
+                return TestResult::discard();
+            }
+
+            let mut r1_snapshot = r1.clone();
+
+            // (r1 ^ r2) ^ r3
+            r1.merge(r2.clone());
+            r1.merge(r3.clone());
+
+            // r1 ^ (r2 ^ r3)
+            r2.merge(r3);
+            r1_snapshot.merge(r2);
+
+            // (r1 ^ r2) ^ r3 = r1 ^ (r2 ^ r3)
+            TestResult::from_bool(r1 == r1_snapshot)
         }
-        let r1_snapshot = r1.clone();
 
-        // r1 ^ r2
-        r1.merge(r2.clone());
+        #[quickcheck]
+        fn prop_commutative(r1_prim: (u8, u16), r2_prim: (u8, u16)) -> TestResult {
+            let mut r1 = build_from_prim(r1_prim);
+            let mut r2 = build_from_prim(r2_prim);
 
-        // r2 ^ r1
-        r2.merge(r1_snapshot);
+            if r1.marker == r2.marker && r1.val != r2.val {
+                return TestResult::discard();
+            }
+            let r1_snapshot = r1.clone();
 
-        // r1 ^ r2 = r2 ^ r1
-        TestResult::from_bool(r1 == r2)
-    }
+            // r1 ^ r2
+            r1.merge(r2.clone());
 
-    #[cfg(feature = "quickcheck")]
-    #[quickcheck]
-    fn prop_idempotent(r_prim: (u8, u16)) -> bool {
-        let mut r = build_from_prim(r_prim);
-        let r_snapshot = r.clone();
+            // r2 ^ r1
+            r2.merge(r1_snapshot);
 
-        // r ^ r
-        r.merge(r_snapshot.clone());
-        // r ^ r = r
-        r == r_snapshot
+            // r1 ^ r2 = r2 ^ r1
+            TestResult::from_bool(r1 == r2)
+        }
+
+        #[quickcheck]
+        fn prop_idempotent(r_prim: (u8, u16)) -> bool {
+            let mut r = build_from_prim(r_prim);
+            let r_snapshot = r.clone();
+
+            // r ^ r
+            r.merge(r_snapshot.clone());
+            // r ^ r = r
+            r == r_snapshot
+        }
+
+        fn build_from_prim(prim: (u8, u16)) -> LWWReg<u8, (u16, u8)> {
+            // we make the marker a tuple so that we avoid conflicts
+            LWWReg {
+                val: prim.0,
+                marker: (prim.1, prim.0),
+            }
+        }
     }
 }

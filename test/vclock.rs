@@ -1,78 +1,4 @@
-use crdts::*;
-
-use std::cmp::Ordering;
-
-quickcheck! {
-    fn prop_into_iter_produces_same_vclock(clock: VClock<u8>) -> bool {
-        clock == clock.clone().into_iter().collect()
-    }
-
-    fn prop_dots_are_commutative_in_from_iter(dots: Vec<Dot<u8>>) -> bool {
-        // TODO: is there a better way to check comutativity of dots?
-        let reverse: VClock<u8> = dots.clone()
-            .into_iter()
-            .rev()
-            .collect();
-        let forward: VClock<u8> = dots
-            .into_iter()
-            .collect();
-
-        reverse == forward
-    }
-
-    fn prop_idempotent_dots_in_from_iter(dots: Vec<Dot<u8>>) -> bool {
-        let single: VClock<u8> = dots.clone()
-            .into_iter()
-            .collect();
-
-        let double: VClock<u8> = dots.clone()
-            .into_iter()
-            .chain(dots.into_iter())
-            .collect();
-
-        single == double
-    }
-
-    fn prop_glb_self_is_nop(clock: VClock<u8>) -> bool {
-        let mut clock_glb = clock.clone();
-        clock_glb.glb(&clock);
-
-        clock_glb == clock
-    }
-
-    fn prop_glb_commutes(a: VClock<u8>, b: VClock<u8>) -> bool {
-        let mut a_glb = a.clone();
-        a_glb.glb(&b);
-
-        let mut b_glb = b;
-        b_glb.glb(&a);
-
-        a_glb == b_glb
-    }
-
-    fn prop_reset_remove_with_empty_is_nop(clock: VClock<u8>) -> bool {
-        let mut subbed  = clock.clone();
-        subbed.reset_remove(&VClock::new());
-        subbed == clock
-    }
-
-    fn prop_reset_remove_self_is_empty(clock: VClock<u8>) -> bool {
-        let mut subbed  = clock.clone();
-        subbed.reset_remove(&clock);
-        subbed == VClock::new()
-    }
-
-    fn prop_reset_remove_is_empty_implies_equal_or_greator(a: VClock<u8>, b: VClock<u8>) -> bool {
-        let mut a = a;
-        a.reset_remove(&b);
-
-        if a.is_empty() {
-            matches!(a.partial_cmp(&b), Some(Ordering::Less) | Some(Ordering::Equal))
-        } else {
-            matches!(a.partial_cmp(&b), None | Some(Ordering::Greater))
-        }
-    }
-}
+use crdts::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 
 #[test]
 fn test_reset_remove() {
@@ -202,4 +128,84 @@ fn test_vclock_ordering() {
     assert!(!(b > a));
     assert!(!(a > b));
     assert_eq!(a, b);
+}
+
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+
+    use std::cmp::Ordering;
+
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn prop_into_iter_produces_same_vclock(clock: VClock<u8>) -> bool {
+        clock == clock.clone().into_iter().collect()
+    }
+
+    #[quickcheck]
+    fn prop_dots_are_commutative_in_from_iter(dots: Vec<Dot<u8>>) -> bool {
+        // TODO: is there a better way to check comutativity of dots?
+        let reverse: VClock<u8> = dots.clone().into_iter().rev().collect();
+        let forward: VClock<u8> = dots.into_iter().collect();
+
+        reverse == forward
+    }
+
+    #[quickcheck]
+    fn prop_idempotent_dots_in_from_iter(dots: Vec<Dot<u8>>) -> bool {
+        let single: VClock<u8> = dots.clone().into_iter().collect();
+
+        let double: VClock<u8> = dots.clone().into_iter().chain(dots.into_iter()).collect();
+
+        single == double
+    }
+
+    #[quickcheck]
+    fn prop_glb_self_is_nop(clock: VClock<u8>) -> bool {
+        let mut clock_glb = clock.clone();
+        clock_glb.glb(&clock);
+
+        clock_glb == clock
+    }
+
+    #[quickcheck]
+    fn prop_glb_commutes(a: VClock<u8>, b: VClock<u8>) -> bool {
+        let mut a_glb = a.clone();
+        a_glb.glb(&b);
+
+        let mut b_glb = b;
+        b_glb.glb(&a);
+
+        a_glb == b_glb
+    }
+
+    #[quickcheck]
+    fn prop_reset_remove_with_empty_is_nop(clock: VClock<u8>) -> bool {
+        let mut subbed = clock.clone();
+        subbed.reset_remove(&VClock::new());
+        subbed == clock
+    }
+
+    #[quickcheck]
+    fn prop_reset_remove_self_is_empty(clock: VClock<u8>) -> bool {
+        let mut subbed = clock.clone();
+        subbed.reset_remove(&clock);
+        subbed == VClock::new()
+    }
+
+    #[quickcheck]
+    fn prop_reset_remove_is_empty_implies_equal_or_greator(a: VClock<u8>, b: VClock<u8>) -> bool {
+        let mut a = a;
+        a.reset_remove(&b);
+
+        if a.is_empty() {
+            matches!(
+                a.partial_cmp(&b),
+                Some(Ordering::Less) | Some(Ordering::Equal)
+            )
+        } else {
+            matches!(a.partial_cmp(&b), None | Some(Ordering::Greater))
+        }
+    }
 }

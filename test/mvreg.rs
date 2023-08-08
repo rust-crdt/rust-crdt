@@ -1,13 +1,5 @@
 use crdts::{mvreg::Op, *};
 
-use quickcheck::TestResult;
-
-#[derive(Debug, Clone)]
-struct TestReg {
-    reg: MVReg<u8, u8>,
-    ops: Vec<Op<u8, u8>>,
-}
-
 #[test]
 fn test_apply() {
     let mut reg = MVReg::new();
@@ -104,42 +96,19 @@ fn test_op_commute_quickcheck1() {
     assert_eq!(reg1, reg2);
 }
 
-fn ops_are_not_compatible(opss: &[&Vec<(u8, u8)>]) -> bool {
-    // We need to make sure that we never insert two different values with
-    // the same actor version.
-    for a_ops in opss.iter() {
-        for b_ops in opss.iter().filter(|o| o != &a_ops) {
-            let mut a_clock = VClock::new();
-            let mut b_clock = VClock::new();
-            for ((_, a_actor), (_, b_actor)) in a_ops.iter().zip(b_ops.iter()) {
-                a_clock.apply(a_clock.inc(*a_actor));
-                b_clock.apply(b_clock.inc(*b_actor));
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+    use quickcheck::TestResult;
+    use quickcheck_macros::quickcheck;
 
-                if b_clock.get(a_actor) == a_clock.get(a_actor) {
-                    // this check is a bit broad as it's not a failure
-                    // to insert the same value with the same actor version
-                    // but for simplicity we reject those ops as well
-                    return true;
-                }
-            }
-        }
+    #[derive(Debug, Clone)]
+    struct TestReg {
+        reg: MVReg<u8, u8>,
+        ops: Vec<Op<u8, u8>>,
     }
-    false
-}
 
-fn build_test_reg(prim_ops: Vec<(u8, u8)>) -> TestReg {
-    let mut reg = MVReg::default();
-    let mut ops = Vec::new();
-    for (val, actor) in prim_ops {
-        let ctx = reg.read().derive_add_ctx(actor);
-        let op = reg.write(val, ctx);
-        reg.apply(op.clone());
-        ops.push(op);
-    }
-    TestReg { reg, ops }
-}
-
-quickcheck! {
+    #[quickcheck]
     fn prop_set_with_ctx_from_read(r_ops: Vec<(u8, u8)>, a: u8) -> bool {
         let mut reg = build_test_reg(r_ops).reg;
         let write_ctx = reg.read().derive_add_ctx(a);
@@ -149,6 +118,7 @@ quickcheck! {
         next_read_ctx.val == vec![23]
     }
 
+    #[quickcheck]
     fn prop_merge_idempotent(r_ops: Vec<(u8, u8)>) -> bool {
         let mut r = build_test_reg(r_ops).reg;
         let r_snapshot = r.clone();
@@ -159,10 +129,8 @@ quickcheck! {
         true
     }
 
-    fn prop_merge_commutative(
-        r1_ops: Vec<(u8, u8)>,
-        r2_ops: Vec<(u8, u8)>
-    ) -> TestResult {
+    #[quickcheck]
+    fn prop_merge_commutative(r1_ops: Vec<(u8, u8)>, r2_ops: Vec<(u8, u8)>) -> TestResult {
         if ops_are_not_compatible(&[&r1_ops, &r2_ops]) {
             return TestResult::discard();
         }
@@ -179,10 +147,11 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
+    #[quickcheck]
     fn prop_merge_associative(
         r1_ops: Vec<(u8, u8)>,
         r2_ops: Vec<(u8, u8)>,
-        r3_ops: Vec<(u8, u8)>
+        r3_ops: Vec<(u8, u8)>,
     ) -> TestResult {
         if ops_are_not_compatible(&[&r1_ops, &r2_ops, &r3_ops]) {
             return TestResult::discard();
@@ -208,6 +177,7 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
+    #[quickcheck]
     fn prop_reset_remove(r_ops: Vec<(u8, u8)>) -> bool {
         let mut r = build_test_reg(r_ops).reg;
         let r_snapshot = r.clone();
@@ -224,6 +194,7 @@ quickcheck! {
         true
     }
 
+    #[quickcheck]
     fn prop_op_idempotent(r_ops: Vec<(u8, u8)>) -> TestResult {
         let test = build_test_reg(r_ops);
         let mut r = test.reg;
@@ -236,11 +207,8 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
-
-    fn prop_op_commutative(
-        o1_ops: Vec<(u8, u8)>,
-        o2_ops: Vec<(u8, u8)>
-    ) -> TestResult {
+    #[quickcheck]
+    fn prop_op_commutative(o1_ops: Vec<(u8, u8)>, o2_ops: Vec<(u8, u8)>) -> TestResult {
         if ops_are_not_compatible(&[&o1_ops, &o2_ops]) {
             return TestResult::discard();
         }
@@ -262,11 +230,11 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
-
+    #[quickcheck]
     fn prop_op_associative(
         o1_ops: Vec<(u8, u8)>,
         o2_ops: Vec<(u8, u8)>,
-        o3_ops: Vec<(u8, u8)>
+        o3_ops: Vec<(u8, u8)>,
     ) -> TestResult {
         if ops_are_not_compatible(&[&o1_ops, &o2_ops, &o3_ops]) {
             return TestResult::discard();
@@ -276,7 +244,6 @@ quickcheck! {
         let o3 = build_test_reg(o3_ops);
         let mut r1 = o1.reg;
         let mut r2 = o2.reg;
-
 
         // r1 <- r2
         for op in o2.ops.into_iter() {
@@ -300,5 +267,40 @@ quickcheck! {
 
         assert_eq!(r1, r2);
         TestResult::from_bool(true)
+    }
+
+    fn build_test_reg(prim_ops: Vec<(u8, u8)>) -> TestReg {
+        let mut reg = MVReg::default();
+        let mut ops = Vec::new();
+        for (val, actor) in prim_ops {
+            let ctx = reg.read().derive_add_ctx(actor);
+            let op = reg.write(val, ctx);
+            reg.apply(op.clone());
+            ops.push(op);
+        }
+        TestReg { reg, ops }
+    }
+
+    fn ops_are_not_compatible(opss: &[&Vec<(u8, u8)>]) -> bool {
+        // We need to make sure that we never insert two different values with
+        // the same actor version.
+        for a_ops in opss.iter() {
+            for b_ops in opss.iter().filter(|o| o != &a_ops) {
+                let mut a_clock = VClock::new();
+                let mut b_clock = VClock::new();
+                for ((_, a_actor), (_, b_actor)) in a_ops.iter().zip(b_ops.iter()) {
+                    a_clock.apply(a_clock.inc(*a_actor));
+                    b_clock.apply(b_clock.inc(*b_actor));
+
+                    if b_clock.get(a_actor) == a_clock.get(a_actor) {
+                        // this check is a bit broad as it's not a failure
+                        // to insert the same value with the same actor version
+                        // but for simplicity we reject those ops as well
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 }

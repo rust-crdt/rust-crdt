@@ -4,36 +4,6 @@ use rand::distributions::Alphanumeric;
 use rand::{Rng, SeedableRng};
 
 type SiteId = u32;
-#[derive(Debug, Clone)]
-struct OperationList(pub Vec<Op<char, SiteId>>);
-
-use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
-
-impl Arbitrary for OperationList {
-    fn arbitrary(g: &mut Gen) -> OperationList {
-        let size = {
-            let s = g.size();
-            if s == 0 {
-                0
-            } else {
-                usize::arbitrary(g) % s
-            }
-        };
-
-        let actor = SiteId::arbitrary(g);
-        let mut site1 = List::new();
-        let ops = (0..size)
-            .filter_map(|_| {
-                let idx = usize::arbitrary(g) % (site1.len() + 1);
-                let op = site1.delete_index(idx, actor);
-                site1.apply(op.clone()?);
-                op
-            })
-            .collect();
-        OperationList(ops)
-    }
-}
 
 #[test]
 fn test_new() {
@@ -304,99 +274,134 @@ fn test_deep_inserts() {
     assert_eq!(Vec::from_iter(site), vec);
 }
 
-#[quickcheck]
-fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
-    let mut site0 = List::new();
-    let mut site1 = List::new();
-    for (elem, idx, source_is_site0) in plan {
-        let ((source, source_actor), replica) = if source_is_site0 {
-            ((&mut site0, 0), &mut site1)
-        } else {
-            ((&mut site1, 1), &mut site0)
-        };
-        let i = idx % (source.len() + 1);
-        let op = source.insert_index(i, elem, source_actor);
-        source.apply(op.clone());
-        replica.apply(op);
-    }
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+    use quickcheck::{Arbitrary, Gen};
+    use quickcheck_macros::quickcheck;
 
-    assert_eq!(Vec::from_iter(site0), Vec::from_iter(site1));
-    true
-}
+    #[derive(Debug, Clone)]
+    struct OperationList(pub Vec<Op<char, SiteId>>);
 
-#[quickcheck]
-fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) {
-    let mut rng = rand::rngs::StdRng::seed_from_u64(1000);
-    let mut op1 = op1.0.into_iter();
-    let mut op2 = op2.0.into_iter();
+    impl Arbitrary for OperationList {
+        fn arbitrary(g: &mut Gen) -> OperationList {
+            let size = {
+                let s = g.size();
+                if s == 0 {
+                    0
+                } else {
+                    usize::arbitrary(g) % s
+                }
+            };
 
-    let mut site1 = List::new();
-    let mut site2 = List::new();
-
-    let mut s1_empty = false;
-    let mut s2_empty = false;
-    while !s1_empty && !s2_empty {
-        if rng.gen() {
-            match op1.next() {
-                Some(o) => {
-                    site1.apply(o.clone());
-                    site2.apply(o);
-                }
-                None => {
-                    s1_empty = true;
-                }
-            }
-        } else {
-            match op2.next() {
-                Some(o) => {
-                    site1.apply(o.clone());
-                    site2.apply(o);
-                }
-                None => {
-                    s2_empty = true;
-                }
-            }
+            let actor = SiteId::arbitrary(g);
+            let mut site1 = List::new();
+            let ops = (0..size)
+                .filter_map(|_| {
+                    let idx = usize::arbitrary(g) % (site1.len() + 1);
+                    let op = site1.delete_index(idx, actor);
+                    site1.apply(op.clone()?);
+                    op
+                })
+                .collect();
+            OperationList(ops)
         }
     }
 
-    let site1_text = String::from_iter(site1);
-    let site2_text = String::from_iter(site2);
+    #[quickcheck]
+    fn prop_mutual_inserting(plan: Vec<(u8, usize, bool)>) -> bool {
+        let mut site0 = List::new();
+        let mut site1 = List::new();
+        for (elem, idx, source_is_site0) in plan {
+            let ((source, source_actor), replica) = if source_is_site0 {
+                ((&mut site0, 0), &mut site1)
+            } else {
+                ((&mut site1, 1), &mut site0)
+            };
+            let i = idx % (source.len() + 1);
+            let op = source.insert_index(i, elem, source_actor);
+            source.apply(op.clone());
+            replica.apply(op);
+        }
 
-    assert_eq!(site1_text, site2_text);
-}
-
-#[quickcheck]
-fn prop_ops_are_idempotent(ops: OperationList) {
-    let mut site1 = List::new();
-    let mut site2 = List::new();
-
-    for op in ops.0.into_iter() {
-        // Apply the same op twice to site1
-        site1.apply(op.clone());
-        site1.apply(op.clone());
-
-        // But only apply that op once to site2
-        site2.apply(op);
+        assert_eq!(Vec::from_iter(site0), Vec::from_iter(site1));
+        true
     }
 
-    let site1_text = String::from_iter(site1);
-    let site2_text = String::from_iter(site2);
+    #[quickcheck]
+    fn prop_inserts_and_deletes(op1: OperationList, op2: OperationList) {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(1000);
+        let mut op1 = op1.0.into_iter();
+        let mut op2 = op2.0.into_iter();
 
-    assert_eq!(site1_text, site2_text)
-}
+        let mut site1 = List::new();
+        let mut site2 = List::new();
 
-#[quickcheck]
-fn prop_len_is_proportional_to_ops(oplist: OperationList) {
-    let mut expected_len = 0;
-    let mut site1 = List::new();
+        let mut s1_empty = false;
+        let mut s2_empty = false;
+        while !s1_empty && !s2_empty {
+            if rng.gen() {
+                match op1.next() {
+                    Some(o) => {
+                        site1.apply(o.clone());
+                        site2.apply(o);
+                    }
+                    None => {
+                        s1_empty = true;
+                    }
+                }
+            } else {
+                match op2.next() {
+                    Some(o) => {
+                        site1.apply(o.clone());
+                        site2.apply(o);
+                    }
+                    None => {
+                        s2_empty = true;
+                    }
+                }
+            }
+        }
 
-    for op in oplist.0.into_iter() {
-        match op {
-            Op::Insert { .. } => expected_len += 1,
-            Op::Delete { .. } => expected_len -= 1,
-        };
-        site1.apply(op);
+        let site1_text = String::from_iter(site1);
+        let site2_text = String::from_iter(site2);
+
+        assert_eq!(site1_text, site2_text);
     }
 
-    assert_eq!(site1.len(), expected_len)
+    #[quickcheck]
+    fn prop_ops_are_idempotent(ops: OperationList) {
+        let mut site1 = List::new();
+        let mut site2 = List::new();
+
+        for op in ops.0.into_iter() {
+            // Apply the same op twice to site1
+            site1.apply(op.clone());
+            site1.apply(op.clone());
+
+            // But only apply that op once to site2
+            site2.apply(op);
+        }
+
+        let site1_text = String::from_iter(site1);
+        let site2_text = String::from_iter(site2);
+
+        assert_eq!(site1_text, site2_text)
+    }
+
+    #[quickcheck]
+    fn prop_len_is_proportional_to_ops(oplist: OperationList) {
+        let mut expected_len = 0;
+        let mut site1 = List::new();
+
+        for op in oplist.0.into_iter() {
+            match op {
+                Op::Insert { .. } => expected_len += 1,
+                Op::Delete { .. } => expected_len -= 1,
+            };
+            site1.apply(op);
+        }
+
+        assert_eq!(site1.len(), expected_len)
+    }
 }

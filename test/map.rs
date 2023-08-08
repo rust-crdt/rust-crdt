@@ -1,48 +1,10 @@
-use crdts::{map, mvreg, CmRDT, CvRDT, Dot, DotRange, MVReg, Map, ResetRemove, VClock};
-use quickcheck::TestResult;
+use crdts::{map, mvreg, CmRDT, CvRDT, Dot, DotRange, MVReg, Map, VClock};
 
 type TActor = u8;
 type TKey = u8;
 type TVal = MVReg<u8, TActor>;
 type TOp = map::Op<TKey, Map<TKey, TVal, TActor>, TActor>;
 type TMap = Map<TKey, Map<TKey, TVal, TActor>, TActor>;
-type OpMaterial = (u8, u8, u8, u8, u8);
-
-fn build_ops(prims: (u8, Vec<OpMaterial>)) -> (TActor, Vec<TOp>) {
-    let (actor, ops_data) = prims;
-
-    let mut ops = Vec::new();
-    for (i, op_data) in ops_data.into_iter().enumerate() {
-        let (choice, inner_choice, key, inner_key, val) = op_data;
-        let clock: VClock<_> = Dot::new(actor, i as u64).into();
-        let dot = clock.inc(actor);
-        let op = match choice % 2 {
-            0 => map::Op::Up {
-                dot,
-                key,
-                op: match inner_choice % 2 {
-                    0 => map::Op::Up {
-                        dot,
-                        key: inner_key,
-                        op: mvreg::Op::Put { clock, val },
-                    },
-                    1 => map::Op::Rm {
-                        clock,
-                        keyset: vec![inner_key].into_iter().collect(),
-                    },
-                    _ => unreachable!(),
-                },
-            },
-            1 => map::Op::Rm {
-                clock,
-                keyset: vec![key].into_iter().collect(),
-            },
-            _ => unreachable!(),
-        };
-        ops.push(op);
-    }
-    (actor, ops)
-}
 
 #[test]
 fn test_new() {
@@ -575,11 +537,20 @@ fn apply_ops(map: &mut TMap, ops: &[TOp]) {
     }
 }
 
-quickcheck! {
+#[cfg(feature = "quickcheck")]
+mod prop_tests {
+    use super::*;
+    use crdts::ResetRemove;
+    use quickcheck::TestResult;
+    use quickcheck_macros::quickcheck;
+
+    type OpMaterial = (u8, u8, u8, u8, u8);
+
     // TODO: add test to show equivalence of merge and Op exchange
+    #[quickcheck]
     fn prop_op_exchange_same_as_merge(
         ops1_prim: (u8, Vec<OpMaterial>),
-        ops2_prim: (u8, Vec<OpMaterial>)
+        ops2_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -603,9 +574,10 @@ quickcheck! {
         TestResult::from_bool(m1 == m_merged && m2 == m_merged)
     }
 
+    #[quickcheck]
     fn prop_op_exchange_converges(
         ops1_prim: (u8, Vec<OpMaterial>),
-        ops2_prim: (u8, Vec<OpMaterial>)
+        ops2_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -631,10 +603,11 @@ quickcheck! {
         TestResult::from_bool(true)
     }
 
+    #[quickcheck]
     fn prop_op_exchange_associative(
         ops1_prim: (u8, Vec<OpMaterial>),
         ops2_prim: (u8, Vec<OpMaterial>),
-        ops3_prim: (u8, Vec<OpMaterial>)
+        ops3_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -664,9 +637,8 @@ quickcheck! {
         TestResult::from_bool(m1 == m2)
     }
 
-    fn prop_op_idempotent(
-        ops_prim: (u8, Vec<OpMaterial>)
-    ) -> bool {
+    #[quickcheck]
+    fn prop_op_idempotent(ops_prim: (u8, Vec<OpMaterial>)) -> bool {
         let ops = build_ops(ops_prim);
         let mut m = TMap::new();
 
@@ -677,10 +649,11 @@ quickcheck! {
         m == m_snapshot
     }
 
+    #[quickcheck]
     fn prop_op_associative(
         ops1_prim: (u8, Vec<OpMaterial>),
         ops2_prim: (u8, Vec<OpMaterial>),
-        ops3_prim: (u8, Vec<OpMaterial>)
+        ops3_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -710,11 +683,11 @@ quickcheck! {
         TestResult::from_bool(m1 == m2)
     }
 
-
+    #[quickcheck]
     fn prop_merge_associative(
         ops1_prim: (u8, Vec<OpMaterial>),
         ops2_prim: (u8, Vec<OpMaterial>),
-        ops3_prim: (u8, Vec<OpMaterial>)
+        ops3_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -745,9 +718,10 @@ quickcheck! {
         TestResult::from_bool(m1 == m1_snapshot)
     }
 
+    #[quickcheck]
     fn prop_merge_commutative(
         ops1_prim: (u8, Vec<OpMaterial>),
-        ops2_prim: (u8, Vec<OpMaterial>)
+        ops2_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -773,10 +747,10 @@ quickcheck! {
         TestResult::from_bool(m1 == m2)
     }
 
-
+    #[quickcheck]
     fn prop_merge_followed_by_merge(
         ops1_prim: (u8, Vec<OpMaterial>),
-        ops2_prim: (u8, Vec<OpMaterial>)
+        ops2_prim: (u8, Vec<OpMaterial>),
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -801,9 +775,8 @@ quickcheck! {
         TestResult::from_bool(m1 == m2)
     }
 
-    fn prop_merge_idempotent(
-        ops_prim: (u8, Vec<OpMaterial>)
-    ) -> bool {
+    #[quickcheck]
+    fn prop_merge_idempotent(ops_prim: (u8, Vec<OpMaterial>)) -> bool {
         let ops = build_ops(ops_prim);
 
         let mut m: TMap = Map::new();
@@ -817,9 +790,8 @@ quickcheck! {
         m == m_snapshot
     }
 
-    fn prop_reset_remove_with_empty_vclock_is_nop(
-        ops_prim: (u8, Vec<OpMaterial>)
-    ) -> bool {
+    #[quickcheck]
+    fn prop_reset_remove_with_empty_vclock_is_nop(ops_prim: (u8, Vec<OpMaterial>)) -> bool {
         let ops = build_ops(ops_prim);
 
         let mut m: TMap = Map::new();
@@ -831,9 +803,8 @@ quickcheck! {
         m == m_snapshot
     }
 
-    fn prop_reset_remove_with_map_clock_is_empty_map(
-        ops_prim: (u8, Vec<OpMaterial>)
-    ) -> bool {
+    #[quickcheck]
+    fn prop_reset_remove_with_map_clock_is_empty_map(ops_prim: (u8, Vec<OpMaterial>)) -> bool {
         let mut m = TMap::new();
         apply_ops(&mut m, &build_ops(ops_prim).1);
 
@@ -845,10 +816,11 @@ quickcheck! {
         m.len().val == 0
     }
 
+    #[quickcheck]
     fn prop_reset_remove_than_merge_same_as_merge_than_reset_remove(
         ops1_prim: (u8, Vec<OpMaterial>),
         ops2_prim: (u8, Vec<OpMaterial>),
-        vclock: VClock<u8>
+        vclock: VClock<u8>,
     ) -> TestResult {
         let ops1 = build_ops(ops1_prim);
         let ops2 = build_ops(ops2_prim);
@@ -875,5 +847,40 @@ quickcheck! {
         m1_reset_remove_after.reset_remove(&vclock);
 
         TestResult::from_bool(m1_reset_remove_after == m1)
+    }
+    fn build_ops(prims: (u8, Vec<OpMaterial>)) -> (TActor, Vec<TOp>) {
+        let (actor, ops_data) = prims;
+
+        let mut ops = Vec::new();
+        for (i, op_data) in ops_data.into_iter().enumerate() {
+            let (choice, inner_choice, key, inner_key, val) = op_data;
+            let clock: VClock<_> = Dot::new(actor, i as u64).into();
+            let dot = clock.inc(actor);
+            let op = match choice % 2 {
+                0 => map::Op::Up {
+                    dot,
+                    key,
+                    op: match inner_choice % 2 {
+                        0 => map::Op::Up {
+                            dot,
+                            key: inner_key,
+                            op: mvreg::Op::Put { clock, val },
+                        },
+                        1 => map::Op::Rm {
+                            clock,
+                            keyset: vec![inner_key].into_iter().collect(),
+                        },
+                        _ => unreachable!(),
+                    },
+                },
+                1 => map::Op::Rm {
+                    clock,
+                    keyset: vec![key].into_iter().collect(),
+                },
+                _ => unreachable!(),
+            };
+            ops.push(op);
+        }
+        (actor, ops)
     }
 }
