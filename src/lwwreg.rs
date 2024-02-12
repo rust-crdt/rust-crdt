@@ -92,6 +92,11 @@ impl<V: PartialEq, M: Ord> CmRDT for LWWReg<V, M> {
 }
 
 impl<V: PartialEq, M: Ord> LWWReg<V, M> {
+    /// Construct a new LwwReg initialized with the given value and marker
+    pub fn new(val: V, marker: M) -> Self {
+        LWWReg { val, marker }
+    }
+
     /// Updates value witnessed by the given marker.
     ///
     /// ```

@@ -77,6 +77,16 @@ impl<T: Ord + Clone> GList<T> {
         self.list.iter().nth(idx)
     }
 
+    /// Generate an Op to insert the given element at the desired position
+    pub fn insert(&self, idx: usize, elem: T) -> Op<T> {
+        assert!(idx <= self.len());
+
+        match idx.checked_sub(1).and_then(|i| self.get(i)) {
+            Some(prev_idx) => self.insert_after(Some(prev_idx), elem),
+            None => self.insert_before(self.get(idx), elem),
+        }
+    }
+
     /// Generate an Op to insert the given element before the given marker
     pub fn insert_before(&self, high_id_opt: Option<&Identifier<T>>, elem: T) -> Op<T> {
         let low_id_opt = high_id_opt.and_then(|high_id| {

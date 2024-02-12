@@ -46,7 +46,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
+use crate::{
+    serde_helper::{self, SerDe},
+    CmRDT, Dot, Identifier, OrdDot, VClock,
+};
 
 /// As described in the module documentation:
 ///
@@ -54,7 +57,8 @@ use crate::{CmRDT, Dot, Identifier, OrdDot, VClock};
 /// It provides an efficient view of the stored sequence, with fast index, insertion and deletion
 /// operations.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct List<T, A: Ord> {
+pub struct List<T: SerDe, A: Ord> {
+    #[serde(with = "serde_helper::btreemap_as_vec")]
     seq: BTreeMap<Identifier<OrdDot<A>>, T>,
     clock: VClock<A>,
 }
@@ -95,7 +99,7 @@ impl<T, A: Ord + Clone + Eq> Op<T, A> {
     }
 }
 
-impl<T, A: Ord> Default for List<T, A> {
+impl<T: SerDe, A: Ord> Default for List<T, A> {
     fn default() -> Self {
         Self {
             seq: Default::default(),
@@ -104,7 +108,7 @@ impl<T, A: Ord> Default for List<T, A> {
     }
 }
 
-impl<T, A: Ord + Clone> List<T, A> {
+impl<T: SerDe, A: Ord + Clone> List<T, A> {
     /// Create an empty List
     pub fn new() -> Self {
         Self::default()
@@ -248,7 +252,7 @@ impl<T, A: Ord + Clone> List<T, A> {
     }
 }
 
-impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
+impl<T: SerDe, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
     type Op = Op<T, A>;
     type Validation = crate::DotRange<A>;
 
@@ -278,7 +282,7 @@ impl<T, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
     }
 }
 
-impl<T, A: Ord> IntoIterator for List<T, A> {
+impl<T: SerDe, A: Ord> IntoIterator for List<T, A> {
     type Item = T;
 
     type IntoIter = std::collections::btree_map::IntoValues<Identifier<OrdDot<A>>, T>;

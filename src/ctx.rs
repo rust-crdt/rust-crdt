@@ -21,7 +21,7 @@ pub struct ReadCtx<V, A: Ord> {
     pub val: V,
 }
 
-/// AddCtx is used for mutations add new information to a CRDT
+/// AddCtx is used for mutations that add new information to a CRDT
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddCtx<A: Ord> {
     /// The adding vclock context

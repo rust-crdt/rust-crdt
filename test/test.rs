@@ -7,4 +7,5 @@ mod map;
 mod merkle_reg;
 mod mvreg;
 mod orswot;
+mod serialization;
 mod vclock;

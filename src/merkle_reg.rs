@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use tiny_keccak::{Hasher, Sha3};
 
+use crate::serde_helper::{self, SerDe};
 use crate::traits::{CmRDT, CvRDT};
 
 /// The hash of a node
@@ -75,13 +76,15 @@ impl<'a, T> Content<'a, T> {
 /// structure to track the current value(s) held by this register.
 /// The roots of the Merkle DAG are the current concurrent values.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct MerkleReg<T> {
+pub struct MerkleReg<T: SerDe> {
     roots: BTreeSet<Hash>,
+    #[serde(with = "serde_helper::btreemap_as_vec")]
     dag: BTreeMap<Hash, Node<T>>,
+    #[serde(with = "serde_helper::btreemap_as_vec")]
     orphans: BTreeMap<Hash, Node<T>>,
 }
 
-impl<T> Default for MerkleReg<T> {
+impl<T: SerDe> Default for MerkleReg<T> {
     fn default() -> Self {
         Self {
             roots: Default::default(),
@@ -91,7 +94,7 @@ impl<T> Default for MerkleReg<T> {
     }
 }
 
-impl<T> MerkleReg<T> {
+impl<T: SerDe> MerkleReg<T> {
     /// Return a new instance of the MerkleReg
     pub fn new() -> Self {
         Default::default()
@@ -190,7 +193,7 @@ impl fmt::Display for ValidationError {
 
 impl std::error::Error for ValidationError {}
 
-impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
+impl<T: Sha3Hash + SerDe> CmRDT for MerkleReg<T> {
     type Op = Node<T>;
     type Validation = ValidationError;
 
@@ -251,7 +254,7 @@ impl<T: Sha3Hash> CmRDT for MerkleReg<T> {
     }
 }
 
-impl<T: Sha3Hash> CvRDT for MerkleReg<T> {
+impl<T: Sha3Hash + SerDe> CvRDT for MerkleReg<T> {
     type Validation = Infallible;
 
     fn validate_merge(&self, _: &Self) -> Result<(), Self::Validation> {
@@ -287,7 +290,7 @@ impl<T: AsRef<[u8]>> Sha3Hash for T {
 use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "quickcheck")]
-impl<T: Arbitrary + Sha3Hash> Arbitrary for MerkleReg<T> {
+impl<T: Arbitrary + Sha3Hash + SerDe> Arbitrary for MerkleReg<T> {
     fn arbitrary(g: &mut Gen) -> Self {
         let mut reg = MerkleReg::new();
         let mut nodes: Vec<Node<_>> = Vec::new();

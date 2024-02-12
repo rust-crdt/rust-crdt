@@ -62,6 +62,8 @@ pub mod ctx;
 #[cfg(feature = "num")]
 pub mod list;
 
+mod serde_helper;
+
 #[cfg(feature = "num")]
 pub use {
     gcounter::GCounter, glist::GList, identifier::Identifier, list::List, pncounter::PNCounter,

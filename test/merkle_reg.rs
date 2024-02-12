@@ -7,14 +7,14 @@ use crdts::CmRDT;
 fn test_write_resolves_fork() {
     let mut reg = MerkleReg::new();
 
-    reg.apply(reg.write("a", Default::default()));
-    reg.apply(reg.write("b", Default::default()));
+    reg.apply(reg.write("a".to_string(), Default::default()));
+    reg.apply(reg.write("b".to_string(), Default::default()));
 
     let contents = reg.read();
     assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"a", &"b"]);
 
     let parents = contents.hashes();
-    reg.apply(reg.write("c", parents));
+    reg.apply(reg.write("c".to_string(), parents));
 
     let contents = reg.read();
     assert_eq!(contents.values().collect::<Vec<_>>(), vec![&"c"]);
@@ -24,9 +24,12 @@ fn test_write_resolves_fork() {
 fn test_traverse_reg_history() {
     let mut reg = MerkleReg::new();
 
-    let a = reg.write("a", Default::default());
-    let b = reg.write("b", Default::default());
-    let c = reg.write("c", vec![a.hash(), b.hash()].into_iter().collect());
+    let a = reg.write("a".to_string(), Default::default());
+    let b = reg.write("b".to_string(), Default::default());
+    let c = reg.write(
+        "c".to_string(),
+        vec![a.hash(), b.hash()].into_iter().collect(),
+    );
 
     reg.apply(a.clone());
     reg.apply(b.clone());
