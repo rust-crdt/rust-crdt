@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{hash_map::RandomState, BTreeSet, HashSet},
     fs::File,
     io::Write,
     io::{self, BufRead, BufReader},
@@ -127,7 +127,8 @@ fn gen_mvreg() -> MVReg<u64, String> {
 }
 
 fn gen_orswot() -> Orswot<u64, String> {
-    let mut set: Orswot<u64, String> = Orswot::new();
+    let s = RandomState::new();
+    let mut set: Orswot<u64, String> = Orswot::with_hasher(s);
 
     let add_ctx_bob = set.read_ctx().derive_add_ctx("bob".into());
     let add_ctx_alice = set.read_ctx().derive_add_ctx("alice".into());
