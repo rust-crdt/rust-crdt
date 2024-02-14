@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::RandomState, BTreeSet, HashSet},
+    collections::{BTreeSet, HashSet},
     fs::File,
     io::Write,
     io::{self, BufRead, BufReader},
@@ -127,8 +127,7 @@ fn gen_mvreg() -> MVReg<u64, String> {
 }
 
 fn gen_orswot() -> Orswot<u64, String> {
-    let s = RandomState::new();
-    let mut set: Orswot<u64, String> = Orswot::with_hasher(s);
+    let mut set: Orswot<u64, String> = Orswot::new();
 
     let add_ctx_bob = set.read_ctx().derive_add_ctx("bob".into());
     let add_ctx_alice = set.read_ctx().derive_add_ctx("alice".into());
@@ -169,20 +168,25 @@ fn gen_vclock() -> VClock<String> {
 
 #[test]
 fn test_serde_json_test_vectors() -> Result<(), io::Error> {
+    // We convert first to serde_json::Value, then encode to string.
+    // This is because Value will automatically sort object keys giving
+    // us a deterministic serialization
     let crdts = [
-        serde_json::to_string(&gen_dot())?,
-        serde_json::to_string(&gen_gcounter())?,
-        serde_json::to_string(&gen_glist())?,
-        serde_json::to_string(&gen_gset())?,
-        serde_json::to_string(&gen_list())?,
-        serde_json::to_string(&gen_lwwreg())?,
-        serde_json::to_string(&gen_map())?,
-        serde_json::to_string(&gen_merkle_reg())?,
-        serde_json::to_string(&gen_mvreg())?,
-        serde_json::to_string(&gen_orswot())?,
-        serde_json::to_string(&gen_pncounter())?,
-        serde_json::to_string(&gen_vclock())?,
-    ];
+        serde_json::to_value(gen_dot())?,
+        serde_json::to_value(gen_gcounter())?,
+        serde_json::to_value(gen_glist())?,
+        serde_json::to_value(gen_gset())?,
+        serde_json::to_value(gen_list())?,
+        serde_json::to_value(gen_lwwreg())?,
+        serde_json::to_value(gen_map())?,
+        serde_json::to_value(gen_merkle_reg())?,
+        serde_json::to_value(gen_mvreg())?,
+        serde_json::to_value(gen_orswot())?,
+        serde_json::to_value(gen_pncounter())?,
+        serde_json::to_value(gen_vclock())?,
+    ]
+    .into_iter()
+    .map(|v| serde_json::to_string(&v).unwrap());
 
     let f = match File::open(TEST_VECTOR_FILE) {
         Ok(f) => f,

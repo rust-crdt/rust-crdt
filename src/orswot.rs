@@ -1,6 +1,5 @@
 /// Observed-Remove Set With Out Tombstones (ORSWOT), ported directly from `riak_dt`.
 use std::cmp::Ordering;
-use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -233,15 +232,6 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     /// Returns a new `Orswot` instance.
     pub fn new() -> Self {
         Default::default()
-    }
-
-    /// Returns a new `Orswot` instantiated with the given hash builder
-    pub fn with_hasher(hash_builder: RandomState) -> Self {
-        Self {
-            clock: Default::default(),
-            entries: HashMap::with_hasher(hash_builder.clone()),
-            deferred: HashMap::with_hasher(hash_builder),
-        }
     }
 
     /// Return a snapshot of the ORSWOT clock
