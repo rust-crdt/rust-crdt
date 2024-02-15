@@ -7,6 +7,7 @@ use crate::{CmRDT, CvRDT};
 
 /// A `GSet` is a grow-only set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct GSet<T: Ord> {
     value: BTreeSet<T>,
 }

@@ -25,6 +25,7 @@ use crate::{CmRDT, CvRDT, Dot, ResetRemove, VClock};
 /// assert!(a.read() > b.read());
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct GCounter<A: Ord> {
     inner: VClock<A>,
 }

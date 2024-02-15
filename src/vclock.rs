@@ -32,6 +32,7 @@ use crate::{CmRDT, CvRDT, Dot, DotRange, ResetRemove};
 /// or if different replicas are "concurrent" (were mutated in
 /// isolation, and need to be resolved externally).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct VClock<A: Ord> {
     /// dots is the mapping from actors to their associated counters
     pub dots: BTreeMap<A, u64>,

@@ -25,6 +25,7 @@ pub enum Op<T> {
 /// when we try to insert between two elements who were inserted concurrently and
 /// whose paths happen to have the same prefix.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct GList<T: Ord> {
     list: BTreeSet<Identifier<T>>,
 }

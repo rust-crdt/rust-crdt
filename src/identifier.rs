@@ -26,6 +26,7 @@ fn rational_between(low: Option<&BigRational>, high: Option<&BigRational>) -> Bi
 /// A dense Identifier, if you have two identifiers that are different, we can
 /// always construct an identifier between them.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(transparent)]
 pub struct Identifier<T>(Vec<(BigRational, T)>);
 
 impl<T: Ord> PartialOrd for Identifier<T> {

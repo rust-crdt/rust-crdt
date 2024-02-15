@@ -30,6 +30,7 @@ use crate::{CmRDT, CvRDT, ResetRemove, VClock};
 /// assert_eq!(r1.read().val, vec!["bob", "alice"]);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct MVReg<V, A: Ord> {
     vals: Vec<(VClock<A>, V)>,
 }
