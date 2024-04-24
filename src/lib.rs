@@ -30,6 +30,13 @@ pub mod vclock;
 /// This module contains the Dot (Actor + Sequence Number)
 pub mod dot;
 
+/// This module contains a Max Register.
+#[cfg(feature = "num")]
+pub mod maxreg;
+
+/// This module contains a Min Register
+pub mod minreg;
+
 /// This module contains a dense Identifier.
 #[cfg(feature = "num")]
 pub mod identifier;
@@ -66,7 +73,8 @@ mod serde_helper;
 
 #[cfg(feature = "num")]
 pub use {
-    gcounter::GCounter, glist::GList, identifier::Identifier, list::List, pncounter::PNCounter,
+    gcounter::GCounter, glist::GList, identifier::Identifier, list::List, maxreg::MaxReg,
+    minreg::MinReg, pncounter::PNCounter,
 };
 
 // /// Version Vector with Exceptions
