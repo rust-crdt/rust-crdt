@@ -1,57 +1,44 @@
 use crate::traits::{CmRDT, CvRDT};
 use serde::{Deserialize, Serialize};
-use std::{error, fmt};
+use std::convert::Infallible;
 
 /// `MaxReg` Holds a monotonically increasing value that implements the Ord trait. For use of floating-point values,
 /// you must create a wrapper (or use a crate like `float-ord`)
+/// For modelling as a `CvRDT`:
+/// ```rust
+/// use crdts::{CvRDT,MaxReg}
+/// let mut a = MaxReg{ 3 };
+/// let b = MaxReg{ 2 };
+///
+/// a.merge(b);
+/// asserteq!(a.val, 3);
+/// ```
+/// and `CmRDT`:
+/// ```rust
+/// use crdts::{CmRDT, MaxReg}
+/// let mut a = MaxReg{ 3 };
+/// let b = 2;
+/// a.apply(b);
+/// asserteq!(a.val, 3)
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct MaxReg<V: Ord + Copy> {
+pub struct MaxReg<V> {
     /// `val` is the opaque element contained within this CRDT
     /// Because `val` is monotonic, it also serves as a marker and preserves causality
     pub val: V,
 }
 
-impl<V: Default + Ord + Copy> Default for MaxReg<V> {
+impl<V: Default + Ord> Default for MaxReg<V> {
     fn default() -> Self {
         Self { val: V::default() }
     }
 }
 
-/// The Type of validation errors that may occur for an MaxReg.
-#[derive(Debug, PartialEq)]
-pub enum Validation {
-    /// A conflicting change to a MaxReg CRDT is when the value being validated is less-than self.val
-    ConflictingValue,
-}
+impl<V: Ord> CvRDT for MaxReg<V> {
+    /// Validates whether a merge is safe to perfom (it always is)
+    type Validation = Infallible;
 
-impl error::Error for Validation {
-    fn description(&self) -> &str {
-        match self {
-            Validation::ConflictingValue => {
-                "Comparison failed! `val` should be monotonically increasing."
-            }
-        }
-    }
-}
-
-impl fmt::Display for Validation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl<V: Ord + Copy> CvRDT for MaxReg<V> {
-    type Validation = Validation;
-    /// Validates whether a merge is safe to perfom
-    ///
-    /// Returns an error if `val` is greater than the proposed new value
-    /// ```
-    /// use crdts::{maxreg, MaxReg, CvRDT};
-    /// let mut ub_1 = MaxReg { val: 1};
-    /// let ub_2 = MaxReg { val: 0 };
-    /// // errors!
-    /// assert_eq!(ub_1.validate_merge(&ub_2), Err(maxreg::Validation::ConflictingVal));
-    /// ```
+    /// Always returns Ok(()) since a validation error is Infallible
     fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
         self.validate_update(&other.val)
     }
@@ -62,22 +49,25 @@ impl<V: Ord + Copy> CvRDT for MaxReg<V> {
     }
 }
 
-impl<V: Ord + Copy> CmRDT for MaxReg<V> {
+impl<V: Ord> CmRDT for MaxReg<V> {
     // MaxRegs's are small enough that we can replicate
     // the entire state as an Op
-    type Op = Self;
-    type Validation = Validation;
+    type Op = V;
 
-    fn validate_op(&self, op: &Self::Op) -> Result<(), Validation> {
-        self.validate_update(&op.val)
+    // No operation is invalid so we can safely return `Ok(())`
+    type Validation = Infallible;
+
+    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+        self.validate_update(&op)
     }
-
     fn apply(&mut self, op: Self::Op) {
-        self.merge(op)
+        // Since type Op = V, we need to wrap MaxReg around op.
+        // If more fields are added to the MaxReg struct, change Op to Self
+        self.merge(MaxReg { val: op })
     }
 }
 
-impl<V: Ord + Copy> MaxReg<V> {
+impl<V: Ord> MaxReg<V> {
     /// Constructs a MaxReg initialized with the specified value `val`.
     pub fn new(&mut self, val: V) -> Self {
         MaxReg { val }
@@ -85,16 +75,24 @@ impl<V: Ord + Copy> MaxReg<V> {
 
     /// Updates the value of the MaxReg. `val` is always monotonically increasing.
     pub fn update(&mut self, val: V) {
-        self.val = std::cmp::max(self.val, val);
+        if val > self.val {
+            self.val = val
+        }
     }
 
-    /// Since `val` is a monotonic value, validation is simply to call update
-    pub fn validate_update(&self, val: &V) -> Result<(), Validation> {
-        if &self.val > val {
-            Err(Validation::ConflictingValue)
-        } else {
-            Ok(())
-        }
+    /// Generates a write op (i.e: a val: V)
+    pub fn write(&self, val: V) -> <MaxReg<V> as CmRDT>::Op {
+        val
+    }
+
+    /// Reads the current value of the register.
+    pub fn read(&self) -> &V {
+        &self.val
+    }
+
+    /// Since `val` is a monotonic value, validation simply returns Ok(())
+    pub fn validate_update(&self, _val: &V) -> Result<(), Infallible> {
+        Ok(())
     }
 }
 
@@ -124,12 +122,33 @@ mod test {
         reg.update(1);
         assert_eq!(reg, MaxReg { val: 2 });
 
-        //bad update: validating an incoming value throws an error
-        //EXPECTED: Err()
-        assert_eq!(reg.validate_update(&1), Err(Validation::ConflictingValue));
-
-        // Applying the update despite the validation error is a no-op (i.e: idempotency)
-        reg.update(1);
+        // Idempotency: Applying the same update is a no-op
+        // EXPECTED: success, the val is still equal to 2 because 2 ≯ 2
+        reg.update(2);
         assert_eq!(reg, MaxReg { val: 2 });
+    }
+    #[test]
+    fn test_read() {
+        // Create a `MaxReg` with initial value of 1
+        let reg = MaxReg { val: 1 };
+        let val = reg.read();
+        assert_eq!(*val, reg.val);
+    }
+
+    #[test]
+    fn test_write() {
+        // Create a `MinReg` with initial value of 6
+        let a = MaxReg { val: 6 };
+
+        // Create a `MinReg` with initial value of 5
+        let mut b = MaxReg { val: 5 };
+
+        // Create a write op:
+        let op = b.write(a.val);
+
+        // Apply the op:
+        b.apply(op);
+
+        assert_eq!(b.val, 6);
     }
 }
