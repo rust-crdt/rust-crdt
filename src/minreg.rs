@@ -28,7 +28,7 @@ pub struct MinReg<V> {
     pub val: V,
 }
 
-impl<V: Default + Ord> Default for MinReg<V> {
+impl<V: Default> Default for MinReg<V> {
     fn default() -> Self {
         Self { val: V::default() }
     }
@@ -39,8 +39,8 @@ impl<V: Ord> CvRDT for MinReg<V> {
     type Validation = Infallible;
 
     /// Always returns Ok(()) since a validation error is Infallible
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        self.validate_update(&other.val)
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     /// Combines two `MinReg` instances according to the value that is smallest
@@ -58,14 +58,15 @@ impl<V: Ord> CmRDT for MinReg<V> {
     type Validation = Infallible;
 
     /// Just return Ok(())
-    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        self.validate_update(&op)
+    fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
+    /// Applies an operation to a MinReg CmRDT
     fn apply(&mut self, op: Self::Op) {
         // Since type Op = V, we need to wrap MinReg around op.
         // If more fields are added to the MinReg struct, change Op to Self
-        self.merge(MinReg { val: op })
+        self.update(op)
     }
 }
 
@@ -90,11 +91,6 @@ impl<V: Ord> MinReg<V> {
     /// Reads the current value of the registers:
     pub fn read(&self) -> &V {
         &self.val
-    }
-
-    /// Since `val` is a monotonic value, validation simply returns Ok(())
-    pub fn validate_update(&self, _val: &V) -> Result<(), Infallible> {
-        Ok(())
     }
 }
 
@@ -128,6 +124,14 @@ mod test {
         // EXPECTED: success, the val is still equal to 0 because 0 ≮ 0
         reg.update(0);
         assert_eq!(reg, MinReg { val: 0 });
+
+        // Test validate_op and validate_merge returns Ok(())
+        // EXPECTED: success, the validation callers only return Ok(())
+        let op = reg.write(-1);
+        assert_eq!(reg.validate_op(&op), Ok(()));
+
+        let other = MinReg { val: -2 };
+        assert_eq!(reg.validate_merge(&other), Ok(()));
     }
     #[test]
     fn test_read() {

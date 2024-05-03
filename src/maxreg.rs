@@ -28,7 +28,7 @@ pub struct MaxReg<V> {
     pub val: V,
 }
 
-impl<V: Default + Ord> Default for MaxReg<V> {
+impl<V: Default> Default for MaxReg<V> {
     fn default() -> Self {
         Self { val: V::default() }
     }
@@ -39,8 +39,8 @@ impl<V: Ord> CvRDT for MaxReg<V> {
     type Validation = Infallible;
 
     /// Always returns Ok(()) since a validation error is Infallible
-    fn validate_merge(&self, other: &Self) -> Result<(), Self::Validation> {
-        self.validate_update(&other.val)
+    fn validate_merge(&self, _other: &Self) -> Result<(), Self::Validation> {
+        Ok(())
     }
 
     /// Combines two `MaxReg` instances according to the value that is greatest
@@ -57,13 +57,16 @@ impl<V: Ord> CmRDT for MaxReg<V> {
     // No operation is invalid so we can safely return `Ok(())`
     type Validation = Infallible;
 
+    /// Just returns Ok(())
     fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
-        self.validate_update(&op)
+        Ok(())
     }
+
+    /// Applies an operation to a MaxReg CmRDT
     fn apply(&mut self, op: Self::Op) {
         // Since type Op = V, we need to wrap MaxReg around op.
         // If more fields are added to the MaxReg struct, change Op to Self
-        self.merge(MaxReg { val: op })
+        self.update(op)
     }
 }
 
@@ -88,11 +91,6 @@ impl<V: Ord> MaxReg<V> {
     /// Reads the current value of the register.
     pub fn read(&self) -> &V {
         &self.val
-    }
-
-    /// Since `val` is a monotonic value, validation simply returns Ok(())
-    pub fn validate_update(&self, _val: &V) -> Result<(), Infallible> {
-        Ok(())
     }
 }
 
@@ -126,6 +124,14 @@ mod test {
         // EXPECTED: success, the val is still equal to 2 because 2 ≯ 2
         reg.update(2);
         assert_eq!(reg, MaxReg { val: 2 });
+
+        // Test validate_op and validate_merge returns Ok(())
+        // EXPECTED: success, the validation callers only return Ok(())
+        let op = reg.write(3);
+        assert_eq!(reg.validate_op(&op), Ok(()));
+
+        let other = MaxReg { val: 4 };
+        assert_eq!(reg.validate_merge(&other), Ok(()));
     }
     #[test]
     fn test_read() {
