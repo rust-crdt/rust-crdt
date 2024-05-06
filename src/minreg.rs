@@ -6,20 +6,20 @@ use std::convert::Infallible;
 /// you must create a wrapper (or use a crate like `float-ord`).
 /// For modelling as a `CvRDT`:
 /// ```rust
-/// use crdts::{CvRDT,MinReg}
-/// let mut a = MinReg{ 3 };
-/// let b = MinReg{ 2 };
+/// use crdts::{CvRDT,MinReg};
+/// let mut a = MinReg{ val: 3 };
+/// let b = MinReg{ val: 2 };
 ///
 /// a.merge(b);
-/// asserteq!(a.val, 2);
+/// assert_eq!(a.val, 2);
 /// ```
 /// and `CmRDT`:
 /// ```rust
-/// use crdts::{CmRDT, MinReg}
-/// let mut a = MinReg{ 3 };
+/// use crdts::{CmRDT, MinReg};
+/// let mut a = MinReg{ val: 3 };
 /// let b = 2;
 /// a.apply(b);
-/// asserteq!(a.val, 2)
+/// assert_eq!(a.val, 2);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MinReg<V> {

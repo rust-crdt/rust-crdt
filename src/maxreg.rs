@@ -6,20 +6,20 @@ use std::convert::Infallible;
 /// you must create a wrapper (or use a crate like `float-ord`)
 /// For modelling as a `CvRDT`:
 /// ```rust
-/// use crdts::{CvRDT,MaxReg}
-/// let mut a = MaxReg{ 3 };
-/// let b = MaxReg{ 2 };
+/// use crdts::{CvRDT,MaxReg};
+/// let mut a = MaxReg{ val: 3 };
+/// let b = MaxReg{ val: 2 };
 ///
 /// a.merge(b);
-/// asserteq!(a.val, 3);
+/// assert_eq!(a.val, 3);
 /// ```
 /// and `CmRDT`:
 /// ```rust
-/// use crdts::{CmRDT, MaxReg}
-/// let mut a = MaxReg{ 3 };
+/// use crdts::{CmRDT, MaxReg};
+/// let mut a = MaxReg{ val: 3 };
 /// let b = 2;
 /// a.apply(b);
-/// asserteq!(a.val, 3)
+/// assert_eq!(a.val, 3);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MaxReg<V> {
@@ -58,7 +58,7 @@ impl<V: Ord> CmRDT for MaxReg<V> {
     type Validation = Infallible;
 
     /// Just returns Ok(())
-    fn validate_op(&self, op: &Self::Op) -> Result<(), Self::Validation> {
+    fn validate_op(&self, _op: &Self::Op) -> Result<(), Self::Validation> {
         Ok(())
     }
 
