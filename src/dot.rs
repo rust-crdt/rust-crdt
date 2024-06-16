@@ -1,6 +1,8 @@
-use std::cmp::{Ordering, PartialOrd};
-use std::fmt;
-use std::hash::{Hash, Hasher};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::cmp::{Ordering, PartialOrd};
+use core::fmt;
+use core::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Serialize};
 
@@ -145,7 +147,7 @@ impl<A: fmt::Debug> fmt::Display for DotRange<A> {
     }
 }
 
-impl<A: fmt::Debug> std::error::Error for DotRange<A> {}
+impl<A: fmt::Debug> core::error::Error for DotRange<A> {}
 
 #[cfg(all(test, feature = "quickcheck"))]
 mod test {

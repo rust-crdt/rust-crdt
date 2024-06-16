@@ -4,8 +4,9 @@ pub trait SerDe: Serialize + DeserializeOwned {}
 impl<T: Serialize + DeserializeOwned> SerDe for T {}
 
 pub(crate) mod btreemap_as_vec {
+    use alloc::collections::BTreeMap;
+    use alloc::vec::Vec;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::collections::BTreeMap;
 
     pub(crate) fn serialize<S, K, V>(v: &BTreeMap<K, V>, s: S) -> Result<S::Ok, S::Error>
     where

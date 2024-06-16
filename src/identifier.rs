@@ -8,6 +8,9 @@
 //!
 //! The GList and List CRDT's rely on this property so that we may always insert elements
 //! between any existing elements.
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::fmt;
 
@@ -85,9 +88,9 @@ impl<T: Clone + Ord + Eq> Identifier<T> {
 
                 let mut path: Vec<(BigRational, T)> = vec![];
 
-                let mut low_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
+                let mut low_path: Box<dyn core::iter::Iterator<Item = &(BigRational, T)>> =
                     Box::new(low.0.iter());
-                let mut high_path: Box<dyn std::iter::Iterator<Item = &(BigRational, T)>> =
+                let mut high_path: Box<dyn core::iter::Iterator<Item = &(BigRational, T)>> =
                     Box::new(high.0.iter());
                 loop {
                     match (low_path.next(), high_path.next()) {
@@ -104,7 +107,7 @@ impl<T: Clone + Ord + Eq> Identifier<T> {
                                 // Otherwise, the two paths have diverged.
                                 // Choose one path and clear out the other.
                                 path.push((h_ratio.clone(), h_m.clone()));
-                                low_path = Box::new(std::iter::empty());
+                                low_path = Box::new(core::iter::empty());
                             }
                         }
                         (low_node, high_node) => {
@@ -168,9 +171,9 @@ impl<T: Arbitrary> Arbitrary for Identifier<T> {
         let mut path = self.0.clone();
         let last_elem_opt = path.pop();
         if last_elem_opt.is_some() {
-            Box::new(std::iter::once(Self(path)))
+            Box::new(core::iter::once(Self(path)))
         } else {
-            Box::new(std::iter::empty())
+            Box::new(core::iter::empty())
         }
     }
 }

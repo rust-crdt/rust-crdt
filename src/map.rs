@@ -1,9 +1,9 @@
-use std::cmp::Ordering;
+use alloc::collections::{BTreeMap, BTreeSet};
+use core::cmp::Ordering;
+use core::fmt::{self, Debug, Display};
+use core::hash::Hash;
+use core::mem;
 use std::collections::HashMap;
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::{self, Debug, Display};
-use std::hash::Hash;
-use std::mem;
 
 use serde::{Deserialize, Serialize};
 
@@ -134,7 +134,7 @@ impl<V: CmRDT + Debug, A: Debug> Display for CmRDTValidation<V, A> {
     }
 }
 
-impl<V: CmRDT + Debug, A: Debug> std::error::Error for CmRDTValidation<V, A> {}
+impl<V: CmRDT + Debug, A: Debug> core::error::Error for CmRDTValidation<V, A> {}
 
 /// The various validation errors that may occur when using a Map CRDT.
 #[derive(Debug, PartialEq, Eq)]
@@ -160,7 +160,7 @@ impl<K: Debug, V: CvRDT + Debug, A: Debug> Display for CvRDTValidation<K, V, A> 
     }
 }
 
-impl<K: Debug, V: CvRDT + Debug, A: Debug> std::error::Error for CvRDTValidation<K, V, A> {}
+impl<K: Debug, V: CvRDT + Debug, A: Debug> core::error::Error for CvRDTValidation<K, V, A> {}
 
 impl<K: Ord, V: Val<A> + Debug, A: Ord + Hash + Clone + Debug> CmRDT for Map<K, V, A> {
     type Op = Op<K, V, A>;

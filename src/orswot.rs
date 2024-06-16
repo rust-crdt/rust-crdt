@@ -1,9 +1,11 @@
 /// Observed-Remove Set With Out Tombstones (ORSWOT), ported directly from `riak_dt`.
-use std::cmp::Ordering;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+use core::fmt::{Debug, Display};
+use core::hash::Hash;
+use core::mem;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
-use std::mem;
 
 use serde::{Deserialize, Serialize};
 
@@ -101,12 +103,12 @@ pub enum Validation<M, A> {
 }
 
 impl<M: Debug, A: Debug> Display for Validation<M, A> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         Debug::fmt(&self, f)
     }
 }
 
-impl<M: Debug, A: Debug> std::error::Error for Validation<M, A> {}
+impl<M: Debug, A: Debug> core::error::Error for Validation<M, A> {}
 
 impl<M: Hash + Eq + Clone + Debug, A: Ord + Hash + Clone + Debug> CvRDT for Orswot<M, A> {
     type Validation = Validation<M, A>;
@@ -243,7 +245,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     pub fn add(&self, member: M, ctx: AddCtx<A>) -> Op<M, A> {
         Op::Add {
             dot: ctx.dot,
-            members: std::iter::once(member).collect(),
+            members: core::iter::once(member).collect(),
         }
     }
 
@@ -259,7 +261,7 @@ impl<M: Hash + Clone + Eq, A: Ord + Hash + Clone> Orswot<M, A> {
     pub fn rm(&self, member: M, ctx: RmCtx<A>) -> Op<M, A> {
         Op::Rm {
             clock: ctx.clock,
-            members: std::iter::once(member).collect(),
+            members: core::iter::once(member).collect(),
         }
     }
 
@@ -433,7 +435,7 @@ impl<A: Ord + Hash + Arbitrary + Debug, M: Hash + Eq + Arbitrary> Arbitrary for 
 }
 
 impl<M: Debug, A: Ord + Hash + Debug> Debug for Op<M, A> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Op::Add { dot, members } => write!(f, "Add({:?}, {:?})", dot, members),
             Op::Rm { clock, members } => write!(f, "Rm({:?}, {:?})", clock, members),

@@ -1,6 +1,6 @@
+use core::fmt::Debug;
 use num::bigint::BigInt;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 
 use crate::traits::{CmRDT, CvRDT, ResetRemove};
 use crate::{Dot, GCounter, VClock};
@@ -190,7 +190,8 @@ mod test {
     #[cfg(feature = "quickcheck")]
     mod prop_tests {
         use super::*;
-        use std::collections::BTreeSet;
+        use alloc::collections::BTreeSet;
+        use alloc::vec::Vec;
 
         use quickcheck_macros::quickcheck;
 
