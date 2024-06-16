@@ -40,9 +40,9 @@
 //! in 2009 29th IEEE International Conference on Distributed Computing Systems,
 //! Montreal, Quebec, Canada, Jun. 2009, pp. 404–412, doi: 10.1109/ICDCS.2009.75.
 
+use alloc::collections::BTreeMap;
 use core::fmt;
 use core::iter::FromIterator;
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -285,7 +285,7 @@ impl<T: SerDe, A: Ord + Clone + fmt::Debug> CmRDT for List<T, A> {
 impl<T: SerDe, A: Ord> IntoIterator for List<T, A> {
     type Item = T;
 
-    type IntoIter = std::collections::btree_map::IntoValues<Identifier<OrdDot<A>>, T>;
+    type IntoIter = alloc::collections::btree_map::IntoValues<Identifier<OrdDot<A>>, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.seq.into_values()

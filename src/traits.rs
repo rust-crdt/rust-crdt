@@ -1,5 +1,5 @@
-use std::error::Error;
-use std::hash::Hash;
+use core::error::Error;
+use core::hash::Hash;
 
 use crate::VClock;
 

@@ -7,9 +7,12 @@
 //! operations.
 //!
 //! [crdt]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
+#![cfg_attr(not(feature = "std"), no_std)]
 #![crate_type = "lib"]
 #![deny(missing_docs)]
 #![deny(unreachable_pub)]
+
+extern crate alloc;
 
 mod traits;
 pub use crate::traits::{Actor, CmRDT, CvRDT, ResetRemove};
@@ -82,9 +85,11 @@ pub use {
 
 /// Top-level re-exports for CRDT structures.
 pub use crate::{
-    dot::Dot, dot::DotRange, dot::OrdDot, gset::GSet, lwwreg::LWWReg, map::Map, mvreg::MVReg,
-    orswot::Orswot, vclock::VClock,
+    dot::Dot, dot::DotRange, dot::OrdDot, gset::GSet, lwwreg::LWWReg, mvreg::MVReg, vclock::VClock,
 };
+
+#[cfg(feature = "std")]
+pub use crate::{map::Map, orswot::Orswot};
 
 /// A re-export of the quickcheck crate for external property tests
 #[cfg(feature = "quickcheck")]

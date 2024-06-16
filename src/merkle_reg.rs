@@ -1,6 +1,7 @@
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::vec::Vec;
 use core::convert::Infallible;
 use core::fmt;
-use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use tiny_keccak::{Hasher, Sha3};
@@ -191,7 +192,7 @@ impl fmt::Display for ValidationError {
     }
 }
 
-impl std::error::Error for ValidationError {}
+impl core::error::Error for ValidationError {}
 
 impl<T: Sha3Hash + SerDe> CmRDT for MerkleReg<T> {
     type Op = Node<T>;

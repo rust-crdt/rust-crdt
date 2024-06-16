@@ -12,11 +12,13 @@
 //! assert!(a > b);
 //! ```
 
+use alloc::boxed::Box;
+use alloc::collections::{btree_map, BTreeMap};
+use alloc::vec::Vec;
 use core::cmp::{self, Ordering};
 use core::convert::Infallible;
 use core::fmt::{self, Debug, Display};
 use core::mem;
-use std::collections::{btree_map, BTreeMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -282,7 +284,7 @@ pub struct IntoIter<A: Ord> {
     btree_iter: btree_map::IntoIter<A, u64>,
 }
 
-impl<A: Ord> std::iter::Iterator for IntoIter<A> {
+impl<A: Ord> core::iter::Iterator for IntoIter<A> {
     type Item = Dot<A>;
 
     fn next(&mut self) -> Option<Dot<A>> {
@@ -292,7 +294,7 @@ impl<A: Ord> std::iter::Iterator for IntoIter<A> {
     }
 }
 
-impl<A: Ord> std::iter::IntoIterator for VClock<A> {
+impl<A: Ord> core::iter::IntoIterator for VClock<A> {
     type Item = Dot<A>;
     type IntoIter = IntoIter<A>;
 
@@ -304,7 +306,7 @@ impl<A: Ord> std::iter::IntoIterator for VClock<A> {
     }
 }
 
-impl<A: Ord + Clone + Debug> std::iter::FromIterator<Dot<A>> for VClock<A> {
+impl<A: Ord + Clone + Debug> core::iter::FromIterator<Dot<A>> for VClock<A> {
     fn from_iter<I: IntoIterator<Item = Dot<A>>>(iter: I) -> Self {
         let mut clock = VClock::default();
 

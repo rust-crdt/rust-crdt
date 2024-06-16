@@ -16,7 +16,8 @@ name = "test"
 path = "test/test.rs"
 
 [features]
-default = ["quickcheck", "num", "merkle"]
+default = ["quickcheck", "num", "merkle", "std"]
+std = []
 quickcheck = ["dep:quickcheck"]
 num = ["dep:num"]
 merkle = ["dep:tiny-keccak"]

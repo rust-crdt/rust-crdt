@@ -1,10 +1,10 @@
 //! # GList - Grow-only List CRDT
 
+use alloc::collections::BTreeSet;
 use core::convert::Infallible;
 use core::fmt;
 use core::iter::FromIterator;
 use core::ops::Bound::*;
-use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,7 @@ impl<T: Ord + Clone> GList<T> {
     }
 
     /// Iterate over the elements of the list
-    pub fn iter(&self) -> std::collections::btree_set::Iter<Identifier<T>> {
+    pub fn iter(&self) -> alloc::collections::btree_set::Iter<Identifier<T>> {
         self.list.iter()
     }
 

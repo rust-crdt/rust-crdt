@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::convert::Infallible;
 use core::fmt::{self, Debug, Display};

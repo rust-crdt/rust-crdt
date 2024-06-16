@@ -1,6 +1,6 @@
 use crate::traits::{CmRDT, CvRDT};
+use core::convert::Infallible;
 use serde::{Deserialize, Serialize};
-use std::convert::Infallible;
 
 /// `MinReg` Holds a monotonically decreasing value that implements the Ord trait. For use of floating-point values,
 /// you must create a wrapper (or use a crate like `float-ord`).
